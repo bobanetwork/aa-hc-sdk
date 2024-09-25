@@ -5,13 +5,13 @@ This SDK provides client-side functionality for Hybrid Compute operations in Rea
 ## Installation
 
 ```bash
-npm install hybrid-compute-client-sdk
+npm install @bobanetwork/aa-hc-sdk-client
 ```
 
 ## Usage
 
 ```typescript
-import { HybridComputeClientSDK } from 'hybrid-compute-client-sdk';
+import { HybridComputeClientSDK } from '@bobanetwork/aa-hc-sdk-client';
 
 const sdk = new HybridComputeClientSDK('chainId', 'accountId');
 

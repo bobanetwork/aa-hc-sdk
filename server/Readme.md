@@ -5,7 +5,7 @@ This SDK provides server-side functionality for Hybrid Compute operations, inclu
 ## Installation
 
 ```bash
-npm install hybrid-compute-server-sdk
+npm install @bobanetwork/aa-hc-sdk-server
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ npm install hybrid-compute-server-sdk
 ### Setting up the RPC Server
 
 ```typescript
-import { HybridComputeSDK } from 'hybrid-compute-server-sdk';
+import { HybridComputeSDK } from '@bobanetwork/aa-hc-sdk-server';
 
 const sdk = new HybridComputeSDK();
 
