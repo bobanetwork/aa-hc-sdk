@@ -1,7 +1,7 @@
 {
-  "name": "hybrid-compute-server-sdk",
+  "name": "@bobanetwork/aa-hc-sdk-server",
   "version": "1.0.0",
-  "description": "Hybrid Compute SDK",
+  "description": "Hybrid Compute SDK for the backend.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "commonjs",
@@ -12,7 +12,11 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": ["hybrid", "compute", "sdk"],
-  "author": "",
+  "author": "Boba Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bobanetwork/aa-hc-sdk.git"
+  },
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.20.3",
