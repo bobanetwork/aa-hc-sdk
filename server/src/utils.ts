@@ -54,7 +54,6 @@ function parseOffchainParameter(
 }
 
 function parseRequest(params: OffchainParameterParsed): Request {
-    console.log("params", params);
     return {
         skey: web3.utils.hexToBytes(params.sk),
         srcAddr: web3.utils.toChecksumAddress(params.srcAddr),
