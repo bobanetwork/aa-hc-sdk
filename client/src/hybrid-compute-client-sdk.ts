@@ -39,7 +39,7 @@ export class HybridComputeClientSDK {
         return {
             payload: {
                 to: params.transaction.contractAddress,
-                value: "0",
+                value: params.transaction.value,
                 data: txData,
             },
             account: this.accountIdConnected,
