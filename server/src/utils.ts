@@ -7,7 +7,7 @@ export type OffchainParameterParsed = {
     srcAddr: string;
     srcNonce: string;
     ooNonce: string;
-    payload: string;
+    payload: any;
 };
 
 export type OffchainParameter = {
@@ -16,7 +16,7 @@ export type OffchainParameter = {
     src_addr: string;
     src_nonce: string;
     oo_nonce: string;
-    payload: string;
+    payload: any;
 };
 
 export type Request = {
@@ -94,7 +94,7 @@ const generateResponse = (
         readonly opNonce: bigint | number
     },
     errorCode: number,
-    respPayload: string
+    respPayload: any
 ) => {
     if (!process.env.HC_HELPER_ADDR) {
         throw new Error("HC_HELPER_ADDR not defined!");
