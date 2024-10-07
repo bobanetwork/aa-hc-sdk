@@ -1,0 +1,5 @@
+.pytest_cache
+venv
+build
+dist
+hybrid_compute_sdk.egg-info

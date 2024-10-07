@@ -7,7 +7,7 @@ export type OffchainParameterParsed = {
     srcAddr: string;
     srcNonce: string;
     ooNonce: string;
-    payload: any;
+    payload: string;
 };
 
 export type OffchainParameter = {
@@ -16,7 +16,7 @@ export type OffchainParameter = {
     src_addr: string;
     src_nonce: string;
     oo_nonce: string;
-    payload: any;
+    payload: string;
 };
 
 export type Request = {
