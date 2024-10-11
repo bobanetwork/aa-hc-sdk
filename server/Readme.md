@@ -32,7 +32,7 @@ import {
   parseOffchainParameter, 
   parseRequest, 
   decodeAbi 
-} from 'hybrid-compute-server-sdk';
+} from '@bobanetwork/aa-hc-sdk-server';
 
 // Parse offchain parameters
 const parsedParams = parseOffchainParameter(offchainParams);
