@@ -1,10 +1,14 @@
 .idea
-/server/dist
-/server/node_modules
-/client/node_modules
+/sdks/server/dist
+/sdks/server/node_modules
+/sdks/client/node_modules
 .DS_Store
-server/tests/
+sdks/server/tests/
 
 lcov-report
 lcov.info
 coverage-summary.json
+**/*.env
+**/venv
+**/dist
+**/build
