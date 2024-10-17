@@ -12,20 +12,18 @@ pip install hybrid_compute_sdk
 ## Usage
 
 ```python
-import asyncio
-from hybrid_compute_sdk.server import HybridComputeSDK
 
-async def main():
-    sdk = HybridComputeSDK()
-    server = sdk.create_json_rpc_server_instance()
+# create your sdk instance
+sdk = HybridComputeSDK()
+sdk.create_json_rpc_server_instance()
 
-    async def hybrid_action(params):
-        gen_response(request, error_code, response) 
-        
-    server.add_server_action("test_action", hybrid_action)
-    
-    await server.listen_at(8080)
+def offchain_getprice(ver, sk, src_addr, src_nonce, oo_nonce, payload, *args):
+    return sdk.gen_response(req, err_code, resp)
 
-if __name__ == '__main__':
-    asyncio.run(main())
+def main():
+    print("created server")
+    sdk.add_server_action("getprice(string)", offchain_getprice)
+
+    print("Serving!")
+    sdk.serve_forever()
 ```

@@ -1,7 +1,0 @@
-asyncio==3.4.3
-hybrid-compute-sdk==0.2.14
-aiohttp==3.8.1
-pytest==7.1.2
-python-dotenv==0.20.0
-web3==7.3.0
-jsonrpclib==0.2.1
