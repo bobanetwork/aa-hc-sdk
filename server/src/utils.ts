@@ -54,7 +54,6 @@ function parseOffchainParameter(
 }
 
 function parseRequest(params: OffchainParameterParsed): Request {
-    console.log("params", params);
     return {
         skey: web3.utils.hexToBytes(params.sk),
         srcAddr: web3.utils.toChecksumAddress(params.srcAddr),
@@ -95,7 +94,7 @@ const generateResponse = (
         readonly opNonce: bigint | number
     },
     errorCode: number,
-    respPayload: string
+    respPayload: any
 ) => {
     if (!process.env.HC_HELPER_ADDR) {
         throw new Error("HC_HELPER_ADDR not defined!");

@@ -1,5 +1,10 @@
 # Hybrid Compute Client SDK
 
+
+<img src="./coverage/badge-lines.svg" alt="Line Coverage">
+<img src="./coverage/badge-functions.svg" alt="Function Coverage">
+<img src="./coverage/badge-branches.svg" alt="Branch Coverage">
+
 This SDK provides client-side functionality for Hybrid Compute operations in React applications.
 
 ## Installation
