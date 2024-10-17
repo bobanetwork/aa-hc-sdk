@@ -1,0 +1,6 @@
+[submodule "examples/typescript/aa-hc-example"]
+	path = examples/typescript/aa-hc-example
+	url = https://github.com/bobanetwork/aa-hc-example
+[submodule "examples/python/aa-hc-text2call"]
+	path = examples/python/aa-hc-text2call
+	url = https://github.com/bobanetwork/aa-hc-text2call
