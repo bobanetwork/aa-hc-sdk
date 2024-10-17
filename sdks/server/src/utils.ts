@@ -96,9 +96,10 @@ const generateResponse = (
     errorCode: number,
     respPayload: any
 ) => {
-    if (!process.env.HC_HELPER_ADDR) {
-        throw new Error("HC_HELPER_ADDR not defined!");
+    if (!process.env.HC_HELPER_ADDR || !process.env.OC_HYBRID_ACCOUNT || !process.env.CHAIN_ID || !process.env.OC_PRIVKEY || !process.env.ENTRY_POINTS) {
+        throw new Error("One or more required environment variables are not defined!");
     }
+
     const encodedResponse = web3.eth.abi.encodeParameters(
         ["address", "uint256", "uint32", "bytes"],
         [req.srcAddr, req.srcNonce, errorCode, respPayload]
