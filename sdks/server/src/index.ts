@@ -3,5 +3,6 @@ export {
     generateResponse, OffchainParameter,
     parseOffchainParameter,
     parseRequest,
+    getParsedRequest,
     ServerActionResponse
 } from './utils';

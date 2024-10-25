@@ -40,6 +40,7 @@ export function selector(name: string): HexString {
     return hex.slice(2, 10);
 }
 
+/*** @deprecated in favor of getParsedRequest which simplifies the usage of `parseOffchainParameter` and `parseRequest` */
 function parseOffchainParameter(
     params: OffchainParameter
 ): OffchainParameterParsed {
@@ -52,13 +53,23 @@ function parseOffchainParameter(
         ver: params.ver,
     };
 }
-
+/*** @deprecated in favor of getParsedRequest which simplifies the usage of `parseOffchainParameter` and `parseRequest` */
 function parseRequest(params: OffchainParameterParsed): Request {
     return {
         skey: web3.utils.hexToBytes(params.sk),
         srcAddr: web3.utils.toChecksumAddress(params.srcAddr),
         srcNonce: web3.utils.hexToNumber("0x" + params.srcNonce),
         opNonce: web3.utils.hexToNumber(params.ooNonce),
+        reqBytes: params.payload,
+    } as const;
+}
+
+function getParsedRequest(params: OffchainParameter): Request {
+    return {
+        skey: web3.utils.hexToBytes(params.sk),
+        srcAddr: web3.utils.toChecksumAddress(params.src_addr),
+        srcNonce: web3.utils.hexToNumber("0x" + params.src_nonce),
+        opNonce: web3.utils.hexToNumber(params.oo_nonce),
         reqBytes: params.payload,
     } as const;
 }
@@ -175,8 +186,6 @@ const generateResponse = (
     // Sign the final hash
     const signature = account.sign(finalHash);
 
-    console.log("Returning response payload:", respPayload);
-
     return {
         success: errorCode === 0,
         response: respPayload,
@@ -187,6 +196,7 @@ const generateResponse = (
 export {
     Web3,
     HexString,
+    getParsedRequest,
     parseOffchainParameter,
     parseRequest,
     decodeAbi,
