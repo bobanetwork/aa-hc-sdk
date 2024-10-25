@@ -9,3 +9,4 @@ coverage-summary.json
 **/dist
 **/build
 **/node_modules
+**/__pycache__

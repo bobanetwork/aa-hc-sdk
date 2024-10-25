@@ -3,3 +3,4 @@ pytest-asyncio==0.21.0
 flake8==6.0.0
 black==23.3.0
 web3==7.3.0
+jsonrpclib==0.2.1
