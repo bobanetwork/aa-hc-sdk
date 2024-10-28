@@ -9,6 +9,11 @@ A Python SDK for creating JSON-RPC servers with hybrid compute capabilities.
 pip install hybrid_compute_sdk
 ```
 
+## Run tests
+
+> 
+> python -m pytest test.py -v --full-trace
+
 ## Usage
 
 ```python
