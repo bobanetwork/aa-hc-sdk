@@ -39,7 +39,7 @@ import {
 } from '@bobanetwork/aa-hc-sdk-server';
 
 // Parse offchain parameters
-const parsedParams = parseOffchainParameter(offchainParams);
+const parsedParams = getParsedRequest(offchainParams);
 
 // Generate a response
 const response = generateResponse(request, errorCode, responsePayload);
