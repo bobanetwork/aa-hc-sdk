@@ -12,6 +12,11 @@ This SDK provides server-side functionality for Hybrid Compute operations, inclu
 npm install @bobanetwork/aa-hc-sdk-server
 ```
 
+## Example Usages
+
+Stuck? Here is an example implementation:
+1. **[FetchPrice Example](https://github.com/bobanetwork/aa-hc-example)**
+
 ## Usage
 
 ### Setting up the RPC Server (index.ts)
