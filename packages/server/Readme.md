@@ -14,38 +14,52 @@ npm install @bobanetwork/aa-hc-sdk-server
 
 ## Usage
 
-### Setting up the RPC Server
+### Setting up the RPC Server (index.ts)
 
 ```typescript
+import {action} from "./server-actions/custom-server-action";
 import { HybridComputeSDK } from '@bobanetwork/aa-hc-sdk-server';
 
-const sdk = new HybridComputeSDK();
+/**  use the HC SDK to create a server, add a rpc method and start the server */
+const hybridCompute = new HybridComputeSDK()
+        .createJsonRpcServerInstance()
+        .addServerAction('getprice(string)', action)
+        .listenAt(1234);
 
-sdk.createJsonRpcServerInstance()
-   .addServerAction('myAction', (params) => {
-     // Handle action
-   })
-   .listenAt(3000);
+console.log(`Started successfully: ${hybridCompute.isServerHealthy()}`)
+
 ```
 
-### Using Utility Functions
+### Setup your Server Actions
 
 ```typescript
-import { 
-  generateResponse, 
-  parseOffchainParameter, 
-  parseRequest, 
-  decodeAbi 
-} from '@bobanetwork/aa-hc-sdk-server';
+import {getParsedRequest} from "./utils";
 
-// Parse offchain parameters
-const parsedParams = getParsedRequest(offchainParams);
+export async function action(params: OffchainParameter): Promise<ServerActionResponse> {
+  const request = getParsedRequest(params);
 
-// Generate a response
-const response = generateResponse(request, errorCode, responsePayload);
+  try {
+    const tokenSymbol = web3.eth.abi.decodeParameter("string", request["reqBytes"]) as string;
 
-// Decode ABI-encoded data
-const decodedData = decodeAbi(types, data);
+    const headers = {
+      accept: "application/json",
+      "x-access-token": process.env.COINRANKING_API_KEY,
+    };
+
+    const coinListResponse = await axios.get("https://api.coinranking.com/v2/coins", {headers});
+    
+    const token = coinListResponse.data.data.coins.find((c: any) => c.symbol === tokenSymbol);
+    
+    const priceResponse = await axios.get(`https://api.coinranking.com/v2/coin/${token.uuid}/price`, {headers});
+    
+    const encodedTokenPrice = web3.eth.abi.encodeParameter("string", priceResponse.data.data.price);
+
+    return generateResponse(request, 0, encodedTokenPrice);
+    
+  } catch (error: any) {
+    return generateResponse(request, 1, web3.utils.asciiToHex(error.message));
+  }
+}
 ```
 
 ## API Documentation
