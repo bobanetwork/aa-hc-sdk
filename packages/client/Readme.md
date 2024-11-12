@@ -17,19 +17,38 @@ npm install @bobanetwork/aa-hc-sdk-client
 
 ```typescript
 import { HybridComputeClientSDK } from '@bobanetwork/aa-hc-sdk-client';
+import {MetaMaskContext} from "@/context/MetamaskContext";
 
-const sdk = new HybridComputeClientSDK('chainId', 'accountId');
+export const defaultSnapOrigin = 'npm:@bobanetwork/snap-account-abstraction-keyring-hc'
+
+const [state] = useContext(MetaMaskContext);
+
+// Boba Local, or 28882 Boba Sepolia
+const chainId = '901'
+
+// Create the SDK
+const sdk = new HybridComputeClientSDK(chainId, state.selectedAcount.id);
 
 // Build an invoke transaction
-const transaction = await sdk.buildInvokeTransaction({
-  // ... transaction parameters
-});
+const transactionDetails = await clientSdk.buildInvokeTransaction({
+    selector: {name: "fetchPrice", params: ["string"]},
+    transaction: {
+        contractAddress: import.meta.env.FETCH_PRICE_CONTRACT,
+        parameters: {types: ['string'], values: [tokenSymbol]},
+        value: "0"
+    }
+})
 
 // Invoke a snap
 const result = await sdk.invokeSnap({
-  // ... invoke options
+    defaultSnapOrigin,
+    transactionDetails,
 });
+
+console.log("Done: ", result);
 ```
+
+
 
 ## API Documentation
 
@@ -49,7 +68,3 @@ constructor(chain: string, accountIdConnected: string)
 - `setChain(chain: string): void`
 
 For more detailed information about the types and interfaces, please refer to the source code.
-
-## License
-
-ISC
