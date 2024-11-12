@@ -4,3 +4,6 @@
 [submodule "examples/python/aa-hc-text2call"]
 	path = examples/python/aa-hc-text2call
 	url = https://github.com/bobanetwork/aa-hc-text2call
+[submodule "boba-blockchain-busters"]
+	path = boba-blockchain-busters
+	url = https://github.com/bobanetwork/boba-blockchain-busters
