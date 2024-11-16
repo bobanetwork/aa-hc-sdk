@@ -34,7 +34,15 @@ export interface InvokeTransaction {
  * Interface for invoke transaction options
  */
 export interface InvokeTransactionOptions {
-    defaultSnapOrigin?: string;
     transactionDetails: InvokeTransaction;
     usePaymaster?: boolean;
 }
+
+export type GetSnapsResponse = Record<string, Snap>;
+
+export type Snap = {
+    permissionName: string;
+    id: string;
+    version: string;
+    initialPermissions: Record<string, unknown>;
+};
