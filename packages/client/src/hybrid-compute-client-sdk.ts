@@ -1,22 +1,30 @@
 import { AbiCoder, concat, ethers, FunctionFragment, hexlify } from "ethers";
 import { CreateInvokeTransaction, InvokeTransactionOptions } from "./hybrid-compute-client-sdk.interface";
 
+interface SnapConfig {
+    snapOrigin: string
+    snapVersion: '1.1.3' | '1.1.4' | string,
+}
+
+interface HybridComputeInitOptions {
+    chain: string;
+    accountIdConnected: string;
+    snapConfiguration: SnapConfig
+}
+
 /**
  * HybridComputeClientSDK class for building and invoking transactions
  */
 export class HybridComputeClientSDK {
-    private chain: string;
-    private accountIdConnected: string;
+    private config: HybridComputeInitOptions;
     private abiCoder: ethers.AbiCoder;
 
     /**
      * Constructor for HybridComputeClientSDK
-     * @param chain - The blockchain network
-     * @param accountIdConnected - The connected account ID
+     * @param hybridComputeOptions
      */
-    constructor(chain: string, accountIdConnected: string) {
-        this.chain = chain;
-        this.accountIdConnected = accountIdConnected;
+    constructor(hybridComputeOptions: HybridComputeInitOptions) {
+        this.config = hybridComputeOptions;
         this.abiCoder = new AbiCoder();
     }
 
@@ -42,8 +50,8 @@ export class HybridComputeClientSDK {
                 value: params.transaction.value,
                 data: txData,
             },
-            account: this.accountIdConnected,
-            scope: `eip155:${this.chain}`,
+            account: this.config.accountIdConnected,
+            scope: `eip155:${this.config.chain}`,
         };
     }
 
@@ -57,11 +65,11 @@ export class HybridComputeClientSDK {
         return await window.ethereum!.request({
             method: "wallet_invokeSnap",
             params: {
-                snapId: invokeOptions.defaultSnapOrigin,
+                snapId: this.config.snapConfiguration.snapOrigin,
                 request: {
                     method: `eth_sendUserOpBoba${invokeOptions.usePaymaster ? 'PM' : ''}`,
                     params: [invokeOptions.transactionDetails],
-                    id: this.accountIdConnected,
+                    id: this.config.accountIdConnected,
                 },
             },
         });
@@ -72,7 +80,7 @@ export class HybridComputeClientSDK {
      * @param accountId - The account ID to set
      */
     setConnectedAccount(accountId: string) {
-        this.accountIdConnected = accountId;
+        this.config.accountIdConnected = accountId;
     }
 
     /**
@@ -80,6 +88,6 @@ export class HybridComputeClientSDK {
      * @param chain - The chain to set
      */
     setChain(chain: string) {
-        this.chain = chain;
+        this.config.chain = chain;
     }
 }
