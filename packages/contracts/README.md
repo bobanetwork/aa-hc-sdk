@@ -24,7 +24,25 @@ contract TokenPrice is Ownable {
     }
 
     function customAction(string calldata token) public {
-        // 
+        string memory price;
+
+        // Encode function signature, which is called on the offchain rpc server.
+        bytes memory req = abi.encodeWithSignature("getprice(string)", token);
+        bytes32 userKey = bytes32(abi.encode(msg.sender));
+        (uint32 error, bytes memory ret) = HA.CallOffchain(userKey, req);
+
+        if (error != 0) {
+            emit FetchPriceError(error);
+            emit FetchPriceRet(ret);
+            revert(string(ret));
+        }
+
+        // Decode price, which was encoded as a string on the offchain rpc server.
+        (price) = abi.decode(ret, (string));
+        tokenPrices[token] = TokenPriceStruct({
+            price: price,
+            timestamp: block.timestamp
+        });
     }
 }
 ```
