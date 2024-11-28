@@ -6,6 +6,7 @@ lcov.info
 coverage-summary.json
 **/*.env
 **/venv
+**/.venv
 **/dist
 **/build
 **/node_modules
