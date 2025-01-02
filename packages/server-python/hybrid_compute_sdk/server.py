@@ -80,10 +80,12 @@ class HybridComputeSDK:
         name_hash = Web3.to_hex(Web3.keccak(text=name))
         return Web3.to_bytes(hexstr=str(name_hash)[:10])
 
+    # version 0.7 (gen_response_v7)
     def gen_response(self, req, err_code, resp_payload):
-        resp2 = ethabi.encode(['address', 'uint256', 'uint32', 'bytes'], [req['srcAddr'], req['srcNonce'], err_code, resp_payload])
+        resp2 = ethabi.encode(['address', 'uint256', 'uint32', 'bytes'], [
+                              req['srcAddr'], req['srcNonce'], err_code, resp_payload])
         p_enc1 = self.selector_hex("PutResponse(bytes32,bytes)") + \
-            ethabi.encode(['bytes32', 'bytes'], [req['skey'], resp2])
+            ethabi.encode(['bytes32', 'bytes'], [req['skey'], resp2])  # dfc98ae8
 
         p_enc2 = self.selector_hex("execute(address,uint256,bytes)") + \
             ethabi.encode(['address', 'uint256', 'bytes'], [
@@ -94,9 +96,13 @@ class HybridComputeSDK:
             'preVerificationGas': "0x10000",
         }
 
+        # This call_gas formula is a "close enough" estimate for the initial implementation.
+        # A more accurate model, or a protocol enhancement to run an actual simulation, may
+        # be required in the future.
         call_gas = 705*len(resp_payload) + 170000
 
         print("call_gas calculation", len(resp_payload), 4+len(p_enc2), call_gas)
+
         account_gas_limits = \
             ethabi.encode(['uint128'],[Web3.to_int(hexstr=limits['verificationGasLimit'])])[16:32] + \
             ethabi.encode(['uint128'],[call_gas])[16:32]
@@ -126,17 +132,20 @@ class HybridComputeSDK:
         ])
         oo_hash = Web3.keccak(ethabi.encode(['bytes32', 'address', 'uint256'], [
                              Web3.keccak(packed), self.EntryPointAddr, self.HC_CHAIN]))
+
         signer_acct = eth_account.account.Account.from_key(self.hc1_key)
         e_msg = eth_account.messages.encode_defunct(oo_hash)
         sig = signer_acct.sign_message(e_msg)
 
-        success = (err_code == 0)
+        success = err_code == 0
+        print("Method returning success={} response={} signature={}".format(success, Web3.to_hex(resp_payload), Web3.to_hex(sig.signature)))
 
         return ({
             "success": success,
             "response": Web3.to_hex(resp_payload),
             "signature": Web3.to_hex(sig.signature)
         })
+
 
     def parse_req(self, sk, src_addr, src_nonce, oo_nonce, payload):
         req = {}
