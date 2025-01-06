@@ -102,13 +102,14 @@ const generateResponse = (
         readonly reqBytes: string;
         readonly srcNonce: bigint | number;
         readonly skey: Uint8Array;
-        readonly opNonce: bigint | number
+        readonly opNonce: bigint | number;
     },
     errorCode: number,
     respPayload: any
 ) => {
-    if (!process.env.HC_HELPER_ADDR || !process.env.OC_HYBRID_ACCOUNT || !process.env.CHAIN_ID || !process.env.OC_PRIVKEY || !process.env.ENTRY_POINTS) {
-        throw new Error("One or more required environment variables are not defined!");
+    if (!process.env.HC_HELPER_ADDR || !process.env.OC_HYBRID_ACCOUNT ||
+        !process.env.CHAIN_ID || !process.env.OC_PRIVKEY || !process.env.ENTRY_POINTS) {
+        throw new Error("One or more required environment variables are not defined");
     }
 
     const encodedResponse = web3.eth.abi.encodeParameters(
@@ -119,12 +120,9 @@ const generateResponse = (
         ["bytes32", "bytes"],
         [req.skey, encodedResponse]
     );
-    const putResponseEncoded =
-        "0x" +
-        selector("PutResponse(bytes32,bytes)") +
+    const putResponseEncoded = "0x" + selector("PutResponse(bytes32,bytes)") +
         putResponseCallData.slice(2);
-
-    const executeCallData = web3.eth.abi.encodeParameters(
+    const callDataEncoded = web3.eth.abi.encodeParameters(
         ["address", "uint256", "bytes"],
         [
             web3.utils.toChecksumAddress(process.env.HC_HELPER_ADDR),
@@ -132,66 +130,56 @@ const generateResponse = (
             putResponseEncoded,
         ]
     );
-    const executeEncoded =
-        "0x" +
-        selector("execute(address,uint256,bytes)") +
-        executeCallData.slice(2);
-
-    const callGasEstimate = 705 * web3.utils.hexToBytes(respPayload).length + 170000; // needs to be calculated this way for correct signature
-    console.log("Final gas estimate: ", callGasEstimate)
-
-    const finalEncodedParameters = web3.eth.abi.encodeParameters(
+    const executeEncoded = "0x" + selector("execute(address,uint256,bytes)") +
+        callDataEncoded.slice(2);
+    // Step 4: Calculate gas limits
+    const limits = {
+        verificationGasLimit: "0x10000",
+        preVerificationGas: "0x10000",
+    };
+    const callGasEstimate = 705 * web3.utils.hexToBytes(respPayload).length + 170000;
+    const accountGasLimits = Buffer.concat([
+        Buffer.from(web3.eth.abi.encodeParameter('uint128',
+            limits.verificationGasLimit).slice(-32, -16)),
+        Buffer.from(web3.eth.abi.encodeParameter('uint128',
+            callGasEstimate).slice(-32, -16))
+    ]);
+    const packed = web3.eth.abi.encodeParameters(
         [
-            "address",
-            "uint256",
-            "bytes32",
-            "bytes32",
-            "uint256",
-            "uint256",
-            "uint256",
-            "uint256",
-            "uint256",
-            "bytes32",
+            'address', 'uint256', 'bytes32', 'bytes32', 'bytes32',
+            'uint256', 'bytes32', 'bytes32',
         ],
         [
             process.env.OC_HYBRID_ACCOUNT,
             req.opNonce,
-            web3.utils.keccak256("0x"), // initcode
+            web3.utils.keccak256("0x"),
             web3.utils.keccak256(executeEncoded),
-            callGasEstimate, // callGas
-            0x10000, // verificationGasLimit
-            0x10000, // preVerificationGas
-            0, // maxFeePerGas
-            0, // maxPriorityFeePerGas
-            web3.utils.keccak256("0x"), // paymasterAndData
+            '0x' + accountGasLimits.toString('hex'),
+            limits.preVerificationGas,
+            '0x' + '0'.repeat(64),
+            web3.utils.keccak256("0x"),
         ]
     );
-
+    // Step 7: Calculate final hash
     const finalHash = web3.utils.keccak256(
         web3.eth.abi.encodeParameters(
             ["bytes32", "address", "uint256"],
             [
-                web3.utils.keccak256(finalEncodedParameters),
+                web3.utils.keccak256(packed),
                 process.env.ENTRY_POINTS,
                 process.env.CHAIN_ID,
             ]
         )
     );
 
-    // Retrieve account from private key
-    const account = web3.eth.accounts.privateKeyToAccount(
-        process.env.OC_PRIVKEY!
-    );
-
-    // Sign the final hash
+    const account = web3.eth.accounts.privateKeyToAccount(process.env.OC_PRIVKEY!);
     const signature = account.sign(finalHash);
-
     return {
         success: errorCode === 0,
         response: respPayload,
         signature: signature.signature,
     };
-}
+};
 
 export {
     Web3,

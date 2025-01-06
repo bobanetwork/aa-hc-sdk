@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="hybrid_compute_sdk",
-    version="0.2.14",
+    version="0.2.43",
     packages=find_packages(exclude=["tests", "venv"]),
     install_requires=[
         "jsonrpcserver",
