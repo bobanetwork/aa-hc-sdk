@@ -40,6 +40,11 @@ export function selector(name: string): HexString {
     return hex.slice(2, 10);
 }
 
+function selectorHex(name: string): string {
+    const hex = web3.utils.toHex(web3.utils.keccak256(name));
+    return hex.slice(0, 10); // Keep 0x prefix
+}
+
 /*** @deprecated in favor of getParsedRequest which simplifies the usage of `parseOffchainParameter` and `parseRequest` */
 function parseOffchainParameter(
     params: OffchainParameter
@@ -82,6 +87,8 @@ function decodeAbi(
 }
 
 /**
+ * V6 EntryPoint compliant generateResponse implementation
+ * This is not compatible with EntryPoint v0.7 ()
  * Generates and returns a response object with a signed payload.
  *
  * This function takes a request object, an error code, and a response payload,
@@ -181,6 +188,102 @@ const generateResponse = (
     };
 };
 
+/**
+ * V0.7 compliant generateResponse function that works with EntryPoint v0.7
+ * 
+ * Works with Entrypoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+ * 
+ * This function creates v0.7 UserOperation signatures that are compatible with 
+ * the bundler's verification expectations (raw hash signing without Ethereum message prefix).
+ * 
+ * @param {object} req - The request object containing source address, nonce, and other details.
+ * @param {number} errorCode - The error code to include in the response.
+ * @param {string} respPayload - The response payload to include.
+ * @returns {object} - An object containing the success status, response payload, and signature.
+ * @throws {Error}
+ */
+const generateResponseV7 = (
+    req: {
+        readonly srcAddr: string;
+        readonly reqBytes: string;
+        readonly srcNonce: bigint | number;
+        readonly skey: Uint8Array;
+        readonly opNonce: bigint | number;
+    },
+    errorCode: number,
+    respPayload: any
+): ServerActionResponse => {
+    if (!process.env.HC_HELPER_ADDR || !process.env.OC_HYBRID_ACCOUNT ||
+        !process.env.CHAIN_ID || !process.env.OC_PRIVKEY || !process.env.ENTRY_POINTS) {
+        throw new Error("One or more required environment variables are not defined");
+    }
+
+    const resp2 = web3.eth.abi.encodeParameters(
+        ['address', 'uint256', 'uint32', 'bytes'],
+        [req.srcAddr, req.srcNonce, errorCode, respPayload]
+    );
+
+    const putResponseCallData = web3.eth.abi.encodeParameters(
+        ['bytes32', 'bytes'], 
+        [req.skey, resp2]
+    );
+    const p_enc1 = selectorHex("PutResponse(bytes32,bytes)") + putResponseCallData.slice(2);
+
+    const executeCallData = web3.eth.abi.encodeParameters(
+        ['address', 'uint256', 'bytes'],
+        [web3.utils.toChecksumAddress(process.env.HC_HELPER_ADDR), 0, p_enc1]
+    );
+    const p_enc2 = selectorHex("execute(address,uint256,bytes)") + executeCallData.slice(2);
+
+    const limits = {
+        verificationGasLimit: "0x10000",
+        preVerificationGas: "0x10000",
+    };
+    
+    const respPayloadBytes = web3.utils.hexToBytes(respPayload);
+    const callGas = 705 * respPayloadBytes.length + 170000;
+
+    const verificationGasEncoded = web3.eth.abi.encodeParameter('uint128', web3.utils.hexToNumber(limits.verificationGasLimit));
+    const callGasEncoded = web3.eth.abi.encodeParameter('uint128', callGas);
+    
+    const verificationGasPart = verificationGasEncoded.slice(34, 66); // 32 chars
+    const callGasPart = callGasEncoded.slice(34, 66); // 32 chars
+    const accountGasLimits = '0x' + verificationGasPart + callGasPart;
+
+    const initCodeHash = web3.utils.keccak256('0x');
+    const callDataHash = web3.utils.keccak256(p_enc2);
+    const paymasterAndDataHash = web3.utils.keccak256('0x');
+    
+    const packed = web3.eth.abi.encodeParameters([
+        'address', 'uint256', 'bytes32', 'bytes32', 'bytes32',
+        'uint256', 'bytes32', 'bytes32'
+    ], [
+        process.env.OC_HYBRID_ACCOUNT,
+        req.opNonce,
+        initCodeHash,
+        callDataHash,
+        accountGasLimits,
+        web3.utils.hexToNumber(limits.preVerificationGas),
+        '0x' + '0'.repeat(64),
+        paymasterAndDataHash
+    ]);
+
+    const packedHash = web3.utils.keccak256(packed);
+    const ooHash = web3.utils.keccak256(web3.eth.abi.encodeParameters(
+        ['bytes32', 'address', 'uint256'],
+        [packedHash, process.env.ENTRY_POINTS, process.env.CHAIN_ID]
+    ));
+
+    const account = web3.eth.accounts.privateKeyToAccount(process.env.OC_PRIVKEY!);
+    const signature = account.sign(ooHash);
+
+    return {
+        success: errorCode === 0,
+        response: web3.utils.toHex(respPayload),
+        signature: signature.signature,
+    };
+};
+
 export {
     Web3,
     HexString,
@@ -188,5 +291,6 @@ export {
     parseOffchainParameter,
     parseRequest,
     decodeAbi,
-    generateResponse
+    generateResponse,
+    generateResponseV7
 };
