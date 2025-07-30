@@ -6,3 +6,4 @@ export {
     getParsedRequest,
     ServerActionResponse
 } from './utils';
+export { UserOpManager, UserOperationV7 } from './userop';
