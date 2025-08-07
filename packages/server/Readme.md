@@ -46,9 +46,7 @@ const web3 = new Web3();
 
 export async function action(params: OffchainParameter): Promise<ServerActionResponse> {
     const request = getParsedRequest(params)
-
     try {
-        // Tokensymbol was encoded with a string in the smart-contract
         const tokenSymbol = web3.eth.abi.decodeParameter(
             "string",
             request["reqBytes"]
@@ -79,10 +77,8 @@ export async function action(params: OffchainParameter): Promise<ServerActionRes
         const tokenPrice = priceResponse.data.data.price;
         const encodedTokenPrice = web3.eth.abi.encodeParameter("string", tokenPrice);
 
-        console.log("ENCODED TOKEN PRICE = ", encodedTokenPrice);
         return generateResponseV7(request, 0, encodedTokenPrice);
     } catch (error: any) {
-        console.log("received error: ", error);
         return generateResponseV7(request, 1, web3.utils.asciiToHex(error.message));
     }
 }
@@ -119,9 +115,9 @@ const ownerAddress = ownerAccount.address;
 
 // Create the smart account
 const result = await userOpManager.createSmartAccount(
-    senderAddress,  // Address that pays for creation
-    privateKey,     // Private key to sign the operation
-    ownerAddress,   // Owner of the new smart account
+    senderAddress,  // Sender of OP
+    privateKey,     // Signer
+    ownerAddress,   // New Owner
     123             // Salt for deterministic address (optional, defaults to 100)
 );
 
@@ -131,12 +127,14 @@ console.log('Transaction Receipt:', result.receipt);
 
 ### Sending Custom User Operations
 
-Send a custom user operation to call any smart contract function:
+Send a custom user operation
+
+see `custom-userop-example.spec.ts` for a full example
 
 ```typescript
 // Example: Call a fetchPrice function on a contract
 const contractAddress = '0x704bc4e8f85f60f77e753d5f3f55e3f1c569586f';
-const smartAccountAddress = '0xYourSmartAccountAddress';
+const sender = '0xYourSenderAddress'; // Smart Account
 
 // Encode the function call
 const token = 'ETH';
@@ -145,8 +143,8 @@ const calldata = userOpManager.selector('fetchPrice(string)') + encodedToken.sli
 
 // Step 1: Build the UserOperation
 const userOp = await userOpManager.buildOp(
-    smartAccountAddress,  // Smart account that will execute
-    contractAddress,      // Contract to call
+    sender,              // Sender
+    contractAddress,     // Contract to call
     0,                   // Value to send (0 for function calls)
     calldata,            // Encoded function call
     0                    // Nonce key (optional)
