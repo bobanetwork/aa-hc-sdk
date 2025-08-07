@@ -18,11 +18,15 @@ export interface UserOperationV7 {
 export class UserOpManager {
     private web3: Web3;
     private bundlerUrl: string;
+    private nodeUrl: string;
     private entryPoint: string;
     private chainId: number;
+    private readonly entrypointV7 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+    private readonly factoryAddress = '0x9aC904d8DfeA0866aB341208700dCA9207834DeB';
 
     constructor(nodeUrl: string, bundlerUrl: string, entryPoint: string, chainId: number) {
         this.web3 = new Web3(new Web3.providers.HttpProvider(nodeUrl));
+        this.nodeUrl = nodeUrl;
         this.bundlerUrl = bundlerUrl;
         this.entryPoint = entryPoint;
         this.chainId = chainId;
@@ -60,8 +64,8 @@ export class UserOpManager {
         const executeCalldata = this.selector('execute(address,uint256,bytes)') + encodedParams.slice(2);
 
         // For v0.7, we need to include the packed gas limits and fees
-        const verificationGasLimit = 200000; // Default verification gas
-        const callGasLimit = 100000; // Default call gas
+        const verificationGasLimit = 0 //250000; // Default verification gas
+        const callGasLimit = 0 //200000; // Default call gas
         
         const accountGasLimits = this.web3.eth.abi.encodeParameter('uint128', verificationGasLimit).slice(34) +
             this.web3.eth.abi.encodeParameter('uint128', callGasLimit).slice(34);
@@ -75,7 +79,7 @@ export class UserOpManager {
             callData: executeCalldata,
             callGasLimit: Web3.utils.toHex(callGasLimit),
             verificationGasLimit: Web3.utils.toHex(verificationGasLimit),
-            preVerificationGas: Web3.utils.toHex(23000), // Default preVerificationGas
+            preVerificationGas: Web3.utils.toHex(45000), // Default preVerificationGas
             maxFeePerGas: Web3.utils.toHex(fee),
             maxPriorityFeePerGas: Web3.utils.toHex(tip),
             signature: '0xfffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c',
@@ -83,6 +87,18 @@ export class UserOpManager {
             accountGasLimits: '0x' + accountGasLimits,
             gasFees: '0x' + gasFees
         };
+    }
+
+    public getEntrypoint() {
+        return this.entryPoint
+    }
+
+    public getRpc() {
+        return this.nodeUrl;
+    }
+
+    public isV7Entrypoint() {
+        return this.entrypointV7.toLowerCase() === this.entrypointV7.toLowerCase();
     }
 
     async estimateOp(op: UserOperationV7): Promise<{ success: boolean, op: UserOperationV7 }> {
@@ -208,8 +224,48 @@ export class UserOpManager {
     async signSubmitOp(op: UserOperationV7, privateKey: string): Promise<any> {
         const signedOp = this.signV7Operation(op, privateKey);
         const opHash = await this.submitOperation(signedOp);
-        const receipt = await this.waitForReceipt(opHash);
+        return await this.waitForReceipt(opHash);
+    }
+
+    async createSmartAccount(
+        senderAddress: string, 
+        privateKey: string, 
+        ownerAddress: string, 
+        salt: number = 100, 
+        factoryAddress: string = this.factoryAddress
+    ): Promise<{ smartAccountAddress: string, receipt: any }> {
+        // First, predict the smart account address
+        const encodedParams = this.web3.eth.abi.encodeParameters(['address', 'uint256'], [ownerAddress, salt]);
+        const calldata = '0x5fbfb9cf' + encodedParams.slice(2);
+
+        const predictedAddress = await this.web3.eth.call({
+            to: factoryAddress,
+            data: calldata
+        });
+        const smartAccountAddress = this.web3.eth.abi.decodeParameter('address', predictedAddress) as string;
+
+        // Build and execute UserOperation to actually create the account
+        const op = await this.buildOp(senderAddress, factoryAddress, 0, calldata);
+        const { success, op: estimatedOp } = await this.estimateOp(op);
         
-        return receipt;
+        if (!success) {
+            throw new Error('Failed to estimate gas for smart account creation');
+        }
+
+        const receipt = await this.signSubmitOp(estimatedOp, privateKey);
+
+        return {
+            smartAccountAddress,
+            receipt
+        };
+    }
+
+    async getOwner(contractAddress: string): Promise<string> {
+        const result = await this.web3.eth.call({
+            to: contractAddress,
+            data: '0x8da5cb5b' // owner() method signature
+        });
+
+        return this.web3.eth.abi.decodeParameter('address', result) as string;
     }
 } 
