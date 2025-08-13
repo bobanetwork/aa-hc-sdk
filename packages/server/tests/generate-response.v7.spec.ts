@@ -24,7 +24,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
   });
 
   describe("Production Log Test Case", () => {
-    it("should generate valid signature for ETH price request using production parameters", () => {
+    it("should generate valid signature for ETH price request using production parameters", async () => {
       const request = {
         srcAddr: "0xf40d61fb6a4f4e8658661c113c630c66fffb6670",
         reqBytes:
@@ -40,17 +40,17 @@ describe("generateResponseV7 - Production Data Verification", () => {
 
       const expectedResponse =
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000011323634332e333931343134343336353339000000000000000000000000000000";
-      const result = generateResponseV7(request, 0, expectedResponse);
+      const result = await generateResponseV7(request, 0, expectedResponse);
 
       expect(result.success).toBe(true);
       expect(result.response).toBe(expectedResponse);
       expect(result.signature).toBeDefined();
       expect(result.signature).toMatch(/^0x[0-9a-fA-F]{130}$/);
-      const result2 = generateResponseV7(request, 0, expectedResponse);
+      const result2 = await generateResponseV7(request, 0, expectedResponse);
       expect(result.signature).toBe(result2.signature);
     });
 
-    it("should handle error codes correctly with production parameters", () => {
+    it("should handle error codes correctly with production parameters", async () => {
       const request = {
         srcAddr: "0xf40d61fb6a4f4e8658661c113c630c66fffb6670",
         reqBytes:
@@ -65,7 +65,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
       };
 
       const errorPayload = web3.utils.utf8ToHex("Error occurred");
-      const result = generateResponseV7(request, 1, errorPayload);
+      const result = await generateResponseV7(request, 1, errorPayload);
 
       expect(result.success).toBe(false);
       expect(result.response).toBe(errorPayload);
@@ -73,7 +73,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
       expect(result.signature).toMatch(/^0x[0-9a-fA-F]{130}$/); // 65 bytes = 130 hex chars
     });
 
-    it("should match existing v0.7 test signature for known parameters", () => {
+    it("should match existing v0.7 test signature for known parameters", async () => {
       // Use the same parameters as the existing user-operation.spec.ts test
       const request = {
         srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
@@ -92,7 +92,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         "0x77fbd8f873e9361241161de136ad47883722b971";
 
       const payload = web3.utils.utf8ToHex("payload");
-      const result = generateResponseV7(request, 0, payload);
+      const result = await generateResponseV7(request, 0, payload);
 
       expect(result.success).toBe(true);
       expect(result.response).toBe(payload);
@@ -113,7 +113,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
       process.env.ENTRY_POINTS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
     });
 
-    it("should generate consistent signatures for same input", () => {
+    it("should generate consistent signatures for same input", async () => {
       const request = {
         srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         reqBytes: "0x1234567890abcdef",
@@ -128,15 +128,15 @@ describe("generateResponseV7 - Production Data Verification", () => {
 
       const payload = web3.utils.utf8ToHex("payload");
 
-      const result1 = generateResponseV7(request, 0, payload);
-      const result2 = generateResponseV7(request, 0, payload);
+      const result1 = await generateResponseV7(request, 0, payload);
+      const result2 = await generateResponseV7(request, 0, payload);
 
       expect(result1.signature).toBe(result2.signature);
       expect(result1.response).toBe(result2.response);
       expect(result1.success).toBe(result2.success);
     });
 
-    it("should handle different payload sizes correctly", () => {
+    it("should handle different payload sizes correctly", async () => {
       const request = {
         srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         reqBytes: "0x1234567890abcdef",
@@ -150,15 +150,15 @@ describe("generateResponseV7 - Production Data Verification", () => {
         "this is a much larger payload that should still work correctly",
       );
 
-      const smallResult = generateResponseV7(request, 0, smallPayload);
-      const largeResult = generateResponseV7(request, 0, largePayload);
+      const smallResult = await generateResponseV7(request, 0, smallPayload);
+      const largeResult = await generateResponseV7(request, 0, largePayload);
 
       expect(smallResult.signature).toBeDefined();
       expect(largeResult.signature).toBeDefined();
       expect(smallResult.signature).not.toBe(largeResult.signature);
     });
 
-    it("should handle BigInt nonces correctly", () => {
+    it("should handle BigInt nonces correctly", async () => {
       const request = {
         srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         reqBytes: "0x1234567890abcdef",
@@ -168,14 +168,14 @@ describe("generateResponseV7 - Production Data Verification", () => {
       };
 
       const payload = web3.utils.utf8ToHex("test");
-      const result = generateResponseV7(request, 0, payload);
+      const result = await generateResponseV7(request, 0, payload);
 
       expect(result.signature).toBeDefined();
       expect(result.success).toBe(true);
       expect(result.response).toBe(payload);
     });
 
-    it("should throw error for missing environment variables", () => {
+    it("should throw error for missing environment variables", async () => {
       delete process.env.HC_HELPER_ADDR;
 
       const request = {
@@ -186,13 +186,13 @@ describe("generateResponseV7 - Production Data Verification", () => {
         opNonce: BigInt(789012),
       };
 
-      expect(() => {
-        generateResponseV7(request, 0, web3.utils.utf8ToHex("test"));
-      }).toThrow("One or more required environment variables are not defined");
+      await expect(async () => {
+        await generateResponseV7(request, 0, web3.utils.utf8ToHex("test"));
+      }).rejects.toThrow("One or more required environment variables are not defined");
     });
 
     describe("Gas Calculation Verification", () => {
-      it("should calculate gas correctly for different payload sizes", () => {
+      it("should calculate gas correctly for different payload sizes", async () => {
         const request = {
           srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
           reqBytes: "0x1234567890abcdef",
@@ -205,8 +205,8 @@ describe("generateResponseV7 - Production Data Verification", () => {
         const payload32Bytes = "0x" + "00".repeat(32); // 32 bytes
         const payload64Bytes = "0x" + "00".repeat(64); // 64 bytes
 
-        const result32 = generateResponseV7(request, 0, payload32Bytes);
-        const result64 = generateResponseV7(request, 0, payload64Bytes);
+        const result32 = await generateResponseV7(request, 0, payload32Bytes);
+        const result64 = await generateResponseV7(request, 0, payload64Bytes);
 
         expect(result32.signature).toBeDefined();
         expect(result64.signature).toBeDefined();
@@ -215,7 +215,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
     });
 
     describe("Signature Format Verification", () => {
-      it("should produce 65-byte signatures (130 hex chars)", () => {
+      it("should produce 65-byte signatures (130 hex chars)", async () => {
         const request = {
           srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
           reqBytes: "0x1234567890abcdef",
@@ -225,12 +225,12 @@ describe("generateResponseV7 - Production Data Verification", () => {
         };
 
         const payload = web3.utils.utf8ToHex("test");
-        const result = generateResponseV7(request, 0, payload);
+        const result = await generateResponseV7(request, 0, payload);
 
         expect(result.signature).toMatch(/^0x[0-9a-fA-F]{130}$/);
       });
 
-      it("should produce different signatures for different private keys", () => {
+      it("should produce different signatures for different private keys", async () => {
         const request = {
           srcAddr: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
           reqBytes: "0x1234567890abcdef",
@@ -242,12 +242,12 @@ describe("generateResponseV7 - Production Data Verification", () => {
         const payload = web3.utils.utf8ToHex("test");
 
         // First signature
-        const result1 = generateResponseV7(request, 0, payload);
+        const result1 = await generateResponseV7(request, 0, payload);
 
         // Change private key and generate second signature
         process.env.OC_PRIVKEY =
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        const result2 = generateResponseV7(request, 0, payload);
+        const result2 = await generateResponseV7(request, 0, payload);
 
         expect(result1.signature).not.toBe(result2.signature);
       });

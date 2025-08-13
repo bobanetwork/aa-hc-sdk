@@ -1,6 +1,6 @@
 export { HybridComputeSDK } from "./sdk";
 export {
-  generateResponse,
+  generateResponseV6,
   generateResponseV7,
   OffchainParameter,
   getParsedRequest,

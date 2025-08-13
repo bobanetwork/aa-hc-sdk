@@ -4,319 +4,289 @@
 <img src="coverage/badge-functions.svg" alt="Function Coverage">
 <img src="coverage/badge-branches.svg" alt="Branch Coverage">
 
-This SDK provides server-side functionality for Hybrid Compute operations, including RPC server setup and utility functions for blockchain interactions.
+The **Hybrid Compute Server SDK** provides:
 
-## Installation
+- Server-side JSON-RPC server utilities for **Hybrid Compute** actions.
+- Full **ERC-4337 v0.7 and v0.6** User Operation Management.
+- Utility functions for off-chain request parsing and signed responses.
+- **Built with VIEM** - Modern, lightweight, and TypeScript-first blockchain library.
+
+
+### 📦 Installation
 
 ```bash
-npm install @bobanetwork/aa-hc-sdk-server web3
+npm install @bobanetwork/aa-hc-sdk-server
 ```
 
-## Example Usages
 
-Stuck? Here is an example implementation:
+### Quick Start
 
-1. **[FetchPrice Example](https://github.com/bobanetwork/aa-hc-example)**
-
-## Usage
-
-### Setting up the RPC Server
+### 1. Create a Hybrid Compute JSON-RPC Server
 
 ```typescript
 import { action } from "./server-actions/custom-server-action";
 import { HybridComputeSDK } from "@bobanetwork/aa-hc-sdk-server";
 
-/**  use the HC SDK to create a server, add a rpc method and start the server */
 const hybridCompute = new HybridComputeSDK()
   .createJsonRpcServerInstance()
   .addServerAction("getprice(string)", action)
   .listenAt(1234);
 
-console.log(`Started successfully: ${hybridCompute.isServerHealthy()}`);
+console.log(`Server started: ${hybridCompute.isServerHealthy()}`);
 ```
 
-### Setup your Server Actions
+---
+
+### 2. Create a Server Action
 
 ```typescript
 import { getParsedRequest, generateResponseV7 } from "./utils";
+import { encodeAbiParameters, parseAbiParameters, decodeAbiParameters, stringToHex } from "viem";
 import axios from "axios";
-import Web3 from "web3";
 
-const web3 = new Web3();
-
-export async function action(
-  params: OffchainParameter,
-): Promise<ServerActionResponse> {
+export async function action(params: OffchainParameter) {
   const request = getParsedRequest(params);
+
   try {
-    const tokenSymbol = web3.eth.abi.decodeParameter(
-      "string",
-      request["reqBytes"],
-    ) as string;
+    const [tokenSymbol] = decodeAbiParameters(
+      parseAbiParameters("string"),
+      request.reqBytes as `0x${string}`
+    );
 
     const headers = {
       accept: "application/json",
       "x-access-token": process.env.COINRANKING_API_KEY,
     };
 
-    const coinListResponse = await axios.get(
+    const { data: { data: { coins } } } = await axios.get(
       "https://api.coinranking.com/v2/coins",
-      { headers },
-    );
-    const token = coinListResponse.data.data.coins.find(
-      (c: any) => c.symbol === tokenSymbol,
+      { headers }
     );
 
-    if (!token) {
-      throw new Error(`Token ${tokenSymbol} not found`);
-    }
+    const token = coins.find((c: any) => c.symbol === tokenSymbol);
+    if (!token) throw new Error(`Token ${tokenSymbol} not found`);
 
-    const priceResponse = await axios.get(
+    const { data: { data: { price } } } = await axios.get(
       `https://api.coinranking.com/v2/coin/${token.uuid}/price`,
-      { headers },
+      { headers }
     );
 
-    const tokenPrice = priceResponse.data.data.price;
-    const encodedTokenPrice = web3.eth.abi.encodeParameter(
-      "string",
-      tokenPrice,
+    const encodedPrice = encodeAbiParameters(
+      parseAbiParameters("string"),
+      [price]
     );
 
-    return generateResponseV7(request, 0, encodedTokenPrice);
+    return await generateResponseV7(request, 0, encodedPrice);
   } catch (error: any) {
-    return generateResponseV7(request, 1, web3.utils.asciiToHex(error.message));
+    return await generateResponseV7(request, 1, stringToHex(error.message));
   }
 }
 ```
 
-## User Operation Management
+### User Operation Management
 
-The SDK also includes a `UserOpManager` for creating and managing smart accounts with Account Abstraction (ERC-4337).
-
-### Creating a Smart Account
-
-1. Create your Smart Account here: https://hub.boba.network/smartaccount
-2. To create a new smart account with an EOA (Externally Owned Account) as the owner:
+### Create a Smart Account
 
 ```typescript
 import { UserOpManager } from "@bobanetwork/aa-hc-sdk-server";
-import Web3 from "web3";
 
-const RPC = "https://sepolia.boba.network";
-const BUNDLER = "https://bundler-hc.sepolia.boba.network/rpc";
-const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const CHAIN_ID = 28882;
-
-// Account that will pay for the creation transaction
-const senderAddress = "0xYourSenderAddress"; // Your Smart Account
-const privateKey = "your-private-key";
-
-// Initialize the UserOpManager
-const userOpManager = new UserOpManager(RPC, BUNDLER, ENTRY_POINT, CHAIN_ID);
-const web3 = new Web3(new Web3.providers.HttpProvider(RPC));
-
-// Derive owner address from private key
-const ownerAccount = web3.eth.accounts.privateKeyToAccount(privateKey);
-const ownerAddress = ownerAccount.address;
-
-// Create the smart account
-const result = await userOpManager.createSmartAccount(
-  senderAddress, // Sender of OP
-  privateKey, // Signer
-  ownerAddress, // New Owner
-  123, // Salt for deterministic address (optional, defaults to 100)
+const userOpManager = new UserOpManager(
+  "https://sepolia.boba.network",
+  "https://bundler-hc.sepolia.boba.network/rpc",
+  "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  28882,
+  'your-private-key'
 );
 
-console.log("Smart Account Address:", result.smartAccountAddress);
-console.log("Transaction Receipt:", result.receipt);
+// Create a new smart account
+const result = await userOpManager.createSmartAccount({
+  salt: 123
+});
+
+console.log("Smart Account Address:", result.address);
 ```
 
-### Sending Custom User Operations
-
-Send a custom user operation
-
-see `custom-userop-example.spec.ts` for a full example
+### Build, Estimate & Send a custom UserOperation
 
 ```typescript
-// Example: Call a fetchPrice function on a contract
-const contractAddress = "0x704bc4e8f85f60f77e753d5f3f55e3f1c569586f";
-const sender = "0xYourSenderAddress"; // Smart Account
+import { encodeAbiParameters, parseAbiParameters } from "viem";
 
-// Encode the function call
-const token = "ETH";
-const encodedToken = web3.eth.abi.encodeParameter("string", token);
+const encodedToken = encodeAbiParameters(
+  parseAbiParameters("string"),
+  ["ETH"]
+);
+
 const calldata =
   userOpManager.selector("fetchPrice(string)") + encodedToken.slice(2);
 
-// Step 1: Build the UserOperation
-const userOp = await userOpManager.buildOp(
-  sender, // Sender
-  contractAddress, // Contract to call
-  0, // Value to send (0 for function calls)
-  calldata, // Encoded function call
-  0, // Nonce key (optional)
+const op = await userOpManager.buildOp(
+  "0xYourSmartAccount",
+  "0xTargetContract",
+  0,
+  calldata
 );
 
-// Step 2: Estimate gas
-const { success, op: estimatedOp } = await userOpManager.estimateOp(userOp);
+const { success, op: estimated } = await userOpManager.estimateOp(op);
+if (!success) throw new Error("Gas estimation failed");
 
-if (!success) {
-  throw new Error("Gas estimation failed");
-}
-
-// Step 3: Sign and submit
-const receipt = await userOpManager.signSubmitOp(estimatedOp, privateKey);
-
-console.log("Operation Hash:", receipt.userOpHash);
-console.log("Transaction Status:", receipt.receipt.status);
+const receipt = await userOpManager.signSubmitOp(estimated);
+console.log("Operation hash:", receipt.userOpHash);
 ```
 
-### Verifying Smart Account Owner
+---
 
-Check the owner of any smart account:
+### Get Smart Account Info (e.g. Owner)
 
 ```typescript
-const contractAddress = "0xSmartAccountAddress";
-const owner = await userOpManager.getOwner(contractAddress);
-console.log("Contract Owner:", owner);
+const expectedAddr = await userOpManager.getExpectedAddress({ salt: 123 });
+console.log("Deterministic address:", expectedAddr);
+
+const owner = await userOpManager.getOwner("0x...");
+console.log("Owner:", owner);
 ```
 
-### UserOpManager Methods
+---
 
-- **`createSmartAccount(senderAddress, privateKey, ownerAddress, salt?)`**  
-  Creates a new smart account via UserOperation
+## 📚 API Reference
 
-- **`buildOp(sender, target, value, calldata, nonceKey?)`**  
-  Builds a UserOperation for any contract call
+### HybridComputeSDK
 
-- **`estimateOp(userOperation)`**  
-  Estimates gas limits for a UserOperation
+| Method | Description |
+|--------|-------------|
+| `createJsonRpcServerInstance()` | Create JSON-RPC server instance |
+| `addServerAction(selectorName, handler)` | Register a server RPC method |
+| `listenAt(port)` | Start server |
+| `isServerHealthy()` | Check if server is running |
+| `getApp()` | Get Express app |
+| `getServer()` | Get JSONRPCServer instance |
 
-- **`signSubmitOp(userOperation, privateKey)`**  
-  Signs and submits a UserOperation to the network
+---
 
-- **`getOwner(contractAddress)`**  
-  Returns the owner address of a smart contract
+### UserOpManager
 
-- **`selector(functionSignature)`**  
-  Generates a function selector from signature (e.g., 'transfer(address,uint256)')
+| Method | Description |
+|--------|-------------|
+| `selector(signature)` | Get function selector |
+| `buildOp(sender, target, value, calldata, nonceKey?)` | Build a UserOperation |
+| `estimateOp(userOp)` | Estimate gas usage |
+| `signSubmitOp(userOp)` | Sign + submit UserOp |
+| `createSmartAccount(params)` | Deploy a smart account |
+| `createSmartContract(sender, privKey, bytecode, salt?)` | Deploy a contract |
+| `getExpectedAddress({ salt })` | Compute deterministic account address |
+| `getOwner(contractAddress)` | Get account owner |
+| `getEntrypoint()` / `getRpc()` / `isV7Entrypoint()` | Config getters |
 
-- **`getEntrypoint()`** / **`getRpc()`** / **`isV7Entrypoint()`**  
-  Getter methods for configuration
+---
 
-### UserOperationV7 Interface
+### Utils
 
-The `UserOperationV7` interface represents an ERC-4337 v0.7 UserOperation:
+| Function | Description |
+|----------|-------------|
+| `selector(name)` | Function selector |
+| `getParsedRequest(params)` | Parse incoming OffchainParameter |
+| `generateResponseV6(req, errCode, payload)` | Sign response for Entrypoint v0.6 |
+| `await generateResponseV7(req, errCode, payload)` | **[ASYNC]** Sign response for Entrypoint v0.7 |
 
-```typescript
-interface UserOperationV7 {
-  sender: string; // Smart account address
-  nonce: string; // Unique transaction number
-  callData: string; // Encoded function call
-  callGasLimit: string; // Gas limit for the main call
-  verificationGasLimit: string; // Gas limit for verification
-  preVerificationGas: string; // Gas for bundler overhead
-  maxFeePerGas: string; // Maximum gas fee
-  maxPriorityFeePerGas: string; // Maximum priority fee
-  signature: string; // Signature for verification
-  paymasterAndData?: string; // Paymaster data (optional)
-  accountGasLimits?: string; // Packed gas limits (v0.7)
-  gasFees?: string; // Packed fee data (v0.7)
-}
-```
-
-## API Documentation
-
-### `HybridComputeSDK`
-
-#### Constructor
-
-```typescript
-constructor();
-```
-
-#### Methods
-
-- `createJsonRpcServerInstance(): HybridComputeSDK`
-  Initializes the JSON-RPC server.
-
-- `addServerAction(selectorName: string, fun: (params: OffchainParameter) => any): HybridComputeSDK`
-  Adds an action to the RPC server.
-
-- `listenAt(port: number): HybridComputeSDK`
-  Starts the server on the specified port.
-
-- `isServerHealthy(): boolean`
-  Checks if the server is properly initialized.
-
-- `getApp(): Express | undefined`
-  Returns the Express app instance.
-
-- `getServer(): JSONRPCServer`
-  Returns the JSON-RPC server instance.
-
-### Utility Functions
-
-- `selector(name: string): HexString`
-  Generates a function selector.
-
-- `parseOffchainParameter(params: OffchainParameter): OffchainParameterParsed`
-  Parses offchain parameters.
-
-- `parseRequest(params: OffchainParameterParsed): Request`
-  Parses a request from parsed offchain parameters.
-
-- `decodeAbi(types: string[], data: string): { [key: string]: unknown; __length__: number }`
-  Decodes ABI-encoded data.
-
-- `generateResponse(req: object, errorCode: number, respPayload: string): ServerActionResponse`
-  Generates a response object with a signed payload.
-
-### Types
-
-- `OffchainParameter`
-- `OffchainParameterParsed`
-- `Request`
-- `ServerActionResponse`
-
-For detailed type definitions, please refer to the source code.
-
-## Environment Variables
-
-The SDK uses the following environment variables:
-
-### Hybrid Compute Server Variables
-
-- `HC_HELPER_ADDR`: Address of the Hybrid Compute helper contract.
-- `OC_HYBRID_ACCOUNT`: Address of the Hybrid Compute account.
-- `ENTRY_POINTS`: Entry points for the Hybrid Compute system.
-- `CHAIN_ID`: ID of the blockchain network.
-- `OC_PRIVKEY`: Private key for signing responses.
-
-### UserOperation Management Variables
-
-- `CLIENT_PRIVATE_KEY`: Private key for signing UserOperations and managing smart accounts.
-
-Ensure these are set in your environment or `.env` file.
-
-### Example .env file
+## 🌍 Environment Variables
 
 ```env
-# Hybrid Compute Configuration
-HC_HELPER_ADDR=0x11c4DbbaC4A0A47a7c76b5603bc219c5dAe752D6
-OC_HYBRID_ACCOUNT=0xe320ffca9e2bd1173d041f47fdc197e168fc1ea9
-ENTRY_POINTS=0x0000000071727De22E5E9d8BAf0edAc6f37da032
-CHAIN_ID=28882
-OC_PRIVKEY=your-offchain-private-key
+# Valid v6 or v7 HC Helper Address
+HC_HELPER_ADDR=0x...
 
-# UserOperation Management
-CLIENT_PRIVATE_KEY=your-client-private-key
+# Valid v6 or v7 Entrypoint (only one EP is required)
+ENTRY_POINTS=0x...
+
+# Your custom Hybrid Account 
+OC_HYBRID_ACCOUNT=0x...
+
+# The Chain Id to operate on
+CHAIN_ID=28882
+
+# The owner of your Hybrid Account
+OC_PRIVKEY=your-offchain-key
+
+# UserOp Manager - Used to interact with custom User Operations
+CLIENT_PRIVATE_KEY=your-key
 ```
 
-## License
+---
+
+## 🐛 Troubleshooting
+
+This guide answers a couple of issues one might encounter.
+
+### Common Issues
+
+**"replacement underpriced" error:**
+```typescript
+// Solution 1: Use random nonce key
+const randomNonceKey = Math.floor(Math.random() * 1000);
+const op = await userOpManager.buildOp(sender, target, 0, calldata, randomNonceKey);
+
+// Solution 2: Wait 10-15 minutes between tests on same account
+```
+
+**Get a list of supported Entrypoints from the current bundler** 
+```
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc":"2.0",
+    "method":"eth_supportedEntryPoints",
+    "id":1
+}' https://bundler-hc.sepolia.boba.network
+```
+
+**Check if given address is deployed/contract**
+```
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc":"2.0",
+    "method":"eth_getCode",
+    "params":["0xf683c1fdc7254c138dd71a9d36bef65d9ebfc4c7", "latest"],
+    "id":1
+}' https://sepolia.boba.network
+```
+
+**Should load block to get hash and number**
+```
+There is an issue with the RPC and you need to switch it.
+```
+
+**UserOp Failed precheck should get payer balance**
+```
+There is an issue with the RPC and you need to switch it.
+```
+
+**Invalid user operation for entry point: 0x0000000071727de22e5e9d8baf0edac6f37da032**
+```
+In case you migrated from version 0.6 to 0.7, this issue might occur. Check the tests or the latest implementation for 0.7. Version 0.7 does some things differently, especially how gas values are packed.
+```
+
+**HC03: Bad offchain signature**
+```
+In general, this happens if there is a mismatch between the signer and the owner of a given account.
+
+Several possible ways:
+
+1. Using the Snap Library: If you create your User Operation with the Snap Library on the Frontend (e.g. PriceFeed example), the signer (your EOA) must be the owner of the HYBRID_ACCOUNT that you have created during the initial setup. You can check the owner of your Hybrid Account either via the SDK or via the above CURL call. The Hybrid Account is the "sender" of the UOP in this case and must be signed by the private key that leads to its owner.
+
+2. Sending a custom User Operation with the SDK: The "sender" adress in the custom user operation must be a smart account.
+
+3. Sending a custom User Operation with the SDK: The owner of the "sender" key in the custom UOP must be signable by the private key that you've supplied. If the signature generated does not match the owner from the sender key, the operation is rejected.
+```
+
+**"callGasLimit is 0" error:**
+```
+- Gas estimation failed due to rate limiting
+- The SDK automatically uses fallback gas values
+- Check your bundler endpoint is accessible
+```
+
+**"Invalid params" error:**
+```
+- Ensure you're using the correct EntryPoint address for v0.7: `0x000000007...0edAc6f37da032`
+- Verify your UserOperation has proper v0.7 format with `accountGasLimits` field
+- Signature might be plain
+```
+
+## 📄 License
 
 ISC
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.

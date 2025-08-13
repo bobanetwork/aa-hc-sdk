@@ -1,4 +1,13 @@
-import Web3, { HexString } from "web3";
+import {
+    keccak256,
+    toHex,
+    hexToBytes,
+    checksumAddress,
+    hexToNumber,
+    encodeAbiParameters,
+    parseAbiParameters, toBytes, padHex, hexToBigInt,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
 
 export type CreateResult = { address: string; receipt: any };
@@ -61,15 +70,13 @@ export interface ServerActionResponse {
   signature: string;
 }
 
-const web3 = new Web3();
-
-export function selector(name: string): HexString {
-  const hex = web3.utils.toHex(web3.utils.keccak256(name));
-  return hex.slice(2, 10);
+export function selector(name: string): string {
+    const hash = keccak256(toBytes(name));
+    return hash.slice(2, 10);
 }
 
 function selectorHex(name: string): string {
-  const hex = web3.utils.toHex(web3.utils.keccak256(name));
+  const hex = toHex(keccak256(name as `0x${string}`));
   return hex.slice(0, 10); // Keep 0x prefix
 }
 
@@ -89,29 +96,32 @@ function parseOffchainParameter(
 /*** @deprecated in favor of getParsedRequest which simplifies the usage of `parseOffchainParameter` and `parseRequest` */
 function parseRequest(params: OffchainParameterParsed): Request {
   return {
-    skey: web3.utils.hexToBytes(params.sk),
-    srcAddr: web3.utils.toChecksumAddress(params.srcAddr),
-    srcNonce: web3.utils.hexToNumber("0x" + params.srcNonce),
-    opNonce: web3.utils.hexToNumber(params.ooNonce),
+    skey: hexToBytes(params.sk as `0x${string}`),
+    srcAddr: checksumAddress(params.srcAddr as `0x${string}`),
+    srcNonce: hexToNumber(("0x" + params.srcNonce) as `0x${string}`),
+    opNonce: hexToNumber(params.ooNonce as `0x${string}`),
     reqBytes: params.payload,
   } as const;
 }
 
 function getParsedRequest(params: OffchainParameter): Request {
-  return {
-    skey: web3.utils.hexToBytes(params.sk),
-    srcAddr: web3.utils.toChecksumAddress(params.src_addr),
-    srcNonce: web3.utils.hexToNumber("0x" + params.src_nonce),
-    opNonce: web3.utils.hexToNumber(params.oo_nonce),
-    reqBytes: params.payload,
-  } as const;
+    return {
+        skey: hexToBytes(padHex(params.sk as `0x${string}`, { size: 32 })),
+        srcAddr: checksumAddress(padHex(params.src_addr as `0x${string}`, { size: 20 })),
+        srcNonce: hexToNumber(("0x" + params.src_nonce) as `0x${string}`),
+        opNonce: hexToBigInt(params.oo_nonce as `0x${string}`),
+        reqBytes: params.payload,
+    } as const;
 }
 
 function decodeAbi(
   types: string[],
   data: string,
 ): { [key: string]: unknown; __length__: number } {
-  return web3.eth.abi.decodeParameters(types, data);
+  // Note: VIEM doesn't have a direct equivalent to Web3's decodeParameters with named properties
+  // This would need to be handled differently based on the specific use case
+  // For now, we'll throw an error to identify where this is used so we can handle it properly
+  throw new Error("decodeAbi function needs specific VIEM implementation based on usage context");
 }
 
 /**
@@ -131,7 +141,7 @@ function decodeAbi(
  * @returns {object} - An object containing the success status, response payload, and signature.
  * @throws {Error}
  */
-const generateResponse = (
+const generateResponseV6 = async (
   req: {
     readonly srcAddr: string;
     readonly reqBytes: string;
@@ -154,24 +164,24 @@ const generateResponse = (
     );
   }
 
-  const encodedResponse = web3.eth.abi.encodeParameters(
-    ["address", "uint256", "uint32", "bytes"],
-    [req.srcAddr, req.srcNonce, errorCode, respPayload],
+  const encodedResponse = encodeAbiParameters(
+    parseAbiParameters("address, uint256, uint32, bytes"),
+    [req.srcAddr as `0x${string}`, BigInt(req.srcNonce), errorCode, respPayload as `0x${string}`],
   );
-  const putResponseCallData = web3.eth.abi.encodeParameters(
-    ["bytes32", "bytes"],
-    [req.skey, encodedResponse],
+  const putResponseCallData = encodeAbiParameters(
+    parseAbiParameters("bytes32, bytes"),
+    [toHex(req.skey), encodedResponse],
   );
   const putResponseEncoded =
     "0x" +
     selector("PutResponse(bytes32,bytes)") +
     putResponseCallData.slice(2);
-  const callDataEncoded = web3.eth.abi.encodeParameters(
-    ["address", "uint256", "bytes"],
+  const callDataEncoded = encodeAbiParameters(
+    parseAbiParameters("address, uint256, bytes"),
     [
-      web3.utils.toChecksumAddress(process.env.HC_HELPER_ADDR),
-      0,
-      putResponseEncoded,
+      checksumAddress(process.env.HC_HELPER_ADDR as `0x${string}`),
+      BigInt(0),
+      putResponseEncoded as `0x${string}`,
     ],
   );
   const executeEncoded =
@@ -184,59 +194,56 @@ const generateResponse = (
     preVerificationGas: "0x10000",
   };
   const callGasEstimate =
-    705 * web3.utils.hexToBytes(respPayload).length + 170000;
-  const accountGasLimits = Buffer.concat([
-    Buffer.from(
-      web3.eth.abi
-        .encodeParameter("uint128", limits.verificationGasLimit)
-        .slice(-32, -16),
-    ),
-    Buffer.from(
-      web3.eth.abi.encodeParameter("uint128", callGasEstimate).slice(-32, -16),
-    ),
-  ]);
-  const packed = web3.eth.abi.encodeParameters(
-    [
-      "address",
-      "uint256",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "uint256",
-      "bytes32",
-      "bytes32",
-    ],
-    [
-      process.env.OC_HYBRID_ACCOUNT,
-      req.opNonce,
-      web3.utils.keccak256("0x"),
-      web3.utils.keccak256(executeEncoded),
-      "0x" + accountGasLimits.toString("hex"),
-      limits.preVerificationGas,
-      "0x" + "0".repeat(64),
-      web3.utils.keccak256("0x"),
-    ],
+    705 * hexToBytes(respPayload as `0x${string}`).length + 170000;
+  
+  const verificationGasEncoded = encodeAbiParameters(
+    parseAbiParameters("uint128"),
+    [BigInt(hexToNumber(limits.verificationGasLimit as `0x${string}`))],
   );
+  const callGasEncoded = encodeAbiParameters(
+    parseAbiParameters("uint128"),
+    [BigInt(callGasEstimate)],
+  );
+  
+  const accountGasLimits = Buffer.concat([
+    Buffer.from(verificationGasEncoded.slice(-32, -16), 'hex'),
+    Buffer.from(callGasEncoded.slice(-32, -16), 'hex'),
+  ]);
+
+    const packed = encodeAbiParameters(
+        parseAbiParameters("address, uint256, bytes32, bytes32, bytes32, uint256, bytes32, bytes32"),
+        [
+            process.env.OC_HYBRID_ACCOUNT as `0x${string}`,
+            BigInt(req.opNonce),
+            keccak256("0x"),
+            keccak256(executeEncoded as `0x${string}`),
+            padHex(("0x" + accountGasLimits.toString("hex")) as `0x${string}`, { size: 32 }),
+            BigInt(hexToNumber(limits.preVerificationGas as `0x${string}`)),
+            ("0x" + "0".repeat(64)) as `0x${string}`,
+            keccak256("0x"),
+        ],
+    );
+
   // Step 7: Calculate final hash
-  const finalHash = web3.utils.keccak256(
-    web3.eth.abi.encodeParameters(
-      ["bytes32", "address", "uint256"],
+  const finalHash = keccak256(
+    encodeAbiParameters(
+      parseAbiParameters("bytes32, address, uint256"),
       [
-        web3.utils.keccak256(packed),
-        process.env.ENTRY_POINTS,
-        process.env.CHAIN_ID,
+        keccak256(packed),
+        process.env.ENTRY_POINTS as `0x${string}`,
+        BigInt(process.env.CHAIN_ID),
       ],
     ),
   );
 
-  const account = web3.eth.accounts.privateKeyToAccount(
-    process.env.OC_PRIVKEY!,
-  );
-  const signature = account.sign(finalHash);
+  const account = privateKeyToAccount(process.env.OC_PRIVKEY! as `0x${string}`);
+  const signature = await account.signMessage({
+    message: { raw: finalHash },
+  });
   return {
     success: errorCode === 0,
     response: respPayload,
-    signature: signature.signature,
+    signature: signature,
   };
 };
 
@@ -254,7 +261,7 @@ const generateResponse = (
  * @returns {object} - An object containing the success status, response payload, and signature.
  * @throws {Error}
  */
-const generateResponseV7 = (
+const generateResponseV7 = async (
   req: {
     readonly srcAddr: string;
     readonly reqBytes: string;
@@ -264,7 +271,7 @@ const generateResponseV7 = (
   },
   errorCode: number,
   respPayload: any,
-): ServerActionResponse => {
+): Promise<ServerActionResponse> => {
   if (
     !process.env.HC_HELPER_ADDR ||
     !process.env.OC_HYBRID_ACCOUNT ||
@@ -277,21 +284,21 @@ const generateResponseV7 = (
     );
   }
 
-  const resp2 = web3.eth.abi.encodeParameters(
-    ["address", "uint256", "uint32", "bytes"],
-    [req.srcAddr, req.srcNonce, errorCode, respPayload],
+  const resp2 = encodeAbiParameters(
+    parseAbiParameters("address, uint256, uint32, bytes"),
+    [req.srcAddr as `0x${string}`, BigInt(req.srcNonce), errorCode, respPayload as `0x${string}`],
   );
 
-  const putResponseCallData = web3.eth.abi.encodeParameters(
-    ["bytes32", "bytes"],
-    [req.skey, resp2],
+  const putResponseCallData = encodeAbiParameters(
+    parseAbiParameters("bytes32, bytes"),
+    [toHex(req.skey), resp2],
   );
   const p_enc1 =
     selectorHex("PutResponse(bytes32,bytes)") + putResponseCallData.slice(2);
 
-  const executeCallData = web3.eth.abi.encodeParameters(
-    ["address", "uint256", "bytes"],
-    [web3.utils.toChecksumAddress(process.env.HC_HELPER_ADDR), 0, p_enc1],
+  const executeCallData = encodeAbiParameters(
+    parseAbiParameters("address, uint256, bytes"),
+    [checksumAddress(process.env.HC_HELPER_ADDR as `0x${string}`), BigInt(0), p_enc1 as `0x${string}`],
   );
   const p_enc2 =
     selectorHex("execute(address,uint256,bytes)") + executeCallData.slice(2);
@@ -301,73 +308,65 @@ const generateResponseV7 = (
     preVerificationGas: "0x10000",
   };
 
-  const respPayloadBytes = web3.utils.hexToBytes(respPayload);
+  const respPayloadBytes = hexToBytes(respPayload as `0x${string}`);
   const callGas = 705 * respPayloadBytes.length + 170000;
 
-  const verificationGasEncoded = web3.eth.abi.encodeParameter(
-    "uint128",
-    web3.utils.hexToNumber(limits.verificationGasLimit),
+  const verificationGasEncoded = encodeAbiParameters(
+    parseAbiParameters("uint128"),
+    [BigInt(hexToNumber(limits.verificationGasLimit as `0x${string}`))],
   );
-  const callGasEncoded = web3.eth.abi.encodeParameter("uint128", callGas);
+  const callGasEncoded = encodeAbiParameters(
+    parseAbiParameters("uint128"),
+    [BigInt(callGas)],
+  );
 
   const verificationGasPart = verificationGasEncoded.slice(34, 66); // 32 chars
   const callGasPart = callGasEncoded.slice(34, 66); // 32 chars
   const accountGasLimits = "0x" + verificationGasPart + callGasPart;
 
-  const initCodeHash = web3.utils.keccak256("0x");
-  const callDataHash = web3.utils.keccak256(p_enc2);
-  const paymasterAndDataHash = web3.utils.keccak256("0x");
+  const initCodeHash = keccak256("0x");
+  const callDataHash = keccak256(p_enc2 as `0x${string}`);
+  const paymasterAndDataHash = keccak256("0x");
 
-  const packed = web3.eth.abi.encodeParameters(
+  const packed = encodeAbiParameters(
+    parseAbiParameters("address, uint256, bytes32, bytes32, bytes32, uint256, bytes32, bytes32"),
     [
-      "address",
-      "uint256",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "uint256",
-      "bytes32",
-      "bytes32",
-    ],
-    [
-      process.env.OC_HYBRID_ACCOUNT,
-      req.opNonce,
+      process.env.OC_HYBRID_ACCOUNT as `0x${string}`,
+      BigInt(req.opNonce),
       initCodeHash,
       callDataHash,
-      accountGasLimits,
-      web3.utils.hexToNumber(limits.preVerificationGas),
-      "0x" + "0".repeat(64),
+      accountGasLimits as `0x${string}`,
+      BigInt(hexToNumber(limits.preVerificationGas as `0x${string}`)),
+      ("0x" + "0".repeat(64)) as `0x${string}`,
       paymasterAndDataHash,
     ],
   );
 
-  const packedHash = web3.utils.keccak256(packed);
-  const ooHash = web3.utils.keccak256(
-    web3.eth.abi.encodeParameters(
-      ["bytes32", "address", "uint256"],
-      [packedHash, process.env.ENTRY_POINTS, process.env.CHAIN_ID],
+  const packedHash = keccak256(packed);
+  const ooHash = keccak256(
+    encodeAbiParameters(
+      parseAbiParameters("bytes32, address, uint256"),
+      [packedHash, process.env.ENTRY_POINTS as `0x${string}`, BigInt(process.env.CHAIN_ID)],
     ),
   );
 
-  const account = web3.eth.accounts.privateKeyToAccount(
-    process.env.OC_PRIVKEY!,
-  );
-  const signature = account.sign(ooHash);
+  const account = privateKeyToAccount(process.env.OC_PRIVKEY! as `0x${string}`);
+  const signature = await account.signMessage({
+    message: { raw: ooHash },
+  });
 
   return {
     success: errorCode === 0,
-    response: web3.utils.toHex(respPayload),
-    signature: signature.signature,
+    response: respPayload,
+    signature: signature,
   };
 };
 
 export {
-  Web3,
-  HexString,
   getParsedRequest,
   parseOffchainParameter,
   parseRequest,
   decodeAbi,
-  generateResponse,
+  generateResponseV6,
   generateResponseV7,
 };

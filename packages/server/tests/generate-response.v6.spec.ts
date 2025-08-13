@@ -1,12 +1,11 @@
 import {
   selector,
-  generateResponse,
+  generateResponseV6,
   getParsedRequest,
-  Web3,
 } from "../src/utils";
+import {encodeAbiParameters, parseAbiParameters} from "viem";
 
-describe("Web3 Utils", () => {
-  const web3: Web3 = new Web3();
+describe("Generation Response V6", () => {
   const INIT_WORKING_PARAMS = {
     ver: "0.2",
     sk: "e450d1db466678d703f18358d5e09749d871818d1c0ffb7375e18eb42304b02e",
@@ -72,23 +71,28 @@ describe("Web3 Utils", () => {
   });
 
   describe("generateResponse", () => {
-    it("should generate a valid response with signature", () => {
-      const resPayload = web3.eth.abi.encodeParameter("string", "2500");
-      const result = generateResponse(
+    it("should generate a valid response with signature", async () => {
+      const resPayload = encodeAbiParameters(
+          parseAbiParameters("string"),
+          ["2500"]
+      );
+      const result = await generateResponseV6(
         getParsedRequest(INIT_WORKING_PARAMS),
         0,
         resPayload,
       );
-
       expect(result).toBeDefined();
       expect(result.success).toBeTruthy();
       expect(result.response).toBeDefined();
       expect(result.signature).toBeDefined();
     });
 
-    it("should set success to false when error code is non-zero", () => {
-      const resPayload = web3.eth.abi.encodeParameter("string", "2500");
-      const result = generateResponse(
+    it("should set success to false when error code is non-zero", async () => {
+      const resPayload = encodeAbiParameters(
+          parseAbiParameters("string"),
+          ["2500"]
+      );
+      const result = await generateResponseV6(
         getParsedRequest(INIT_WORKING_PARAMS),
         1,
         resPayload,
