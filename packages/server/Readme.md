@@ -15,6 +15,7 @@ npm install @bobanetwork/aa-hc-sdk-server web3
 ## Example Usages
 
 Stuck? Here is an example implementation:
+
 1. **[FetchPrice Example](https://github.com/bobanetwork/aa-hc-example)**
 
 ## Usage
@@ -22,65 +23,69 @@ Stuck? Here is an example implementation:
 ### Setting up the RPC Server
 
 ```typescript
-import {action} from "./server-actions/custom-server-action";
-import { HybridComputeSDK } from '@bobanetwork/aa-hc-sdk-server';
+import { action } from "./server-actions/custom-server-action";
+import { HybridComputeSDK } from "@bobanetwork/aa-hc-sdk-server";
 
 /**  use the HC SDK to create a server, add a rpc method and start the server */
 const hybridCompute = new HybridComputeSDK()
-        .createJsonRpcServerInstance()
-        .addServerAction('getprice(string)', action)
-        .listenAt(1234);
+  .createJsonRpcServerInstance()
+  .addServerAction("getprice(string)", action)
+  .listenAt(1234);
 
-console.log(`Started successfully: ${hybridCompute.isServerHealthy()}`)
-
+console.log(`Started successfully: ${hybridCompute.isServerHealthy()}`);
 ```
 
 ### Setup your Server Actions
 
 ```typescript
-import {getParsedRequest, generateResponseV7} from "./utils";
+import { getParsedRequest, generateResponseV7 } from "./utils";
 import axios from "axios";
 import Web3 from "web3";
 
 const web3 = new Web3();
 
-export async function action(params: OffchainParameter): Promise<ServerActionResponse> {
-    const request = getParsedRequest(params)
-    try {
-        const tokenSymbol = web3.eth.abi.decodeParameter(
-            "string",
-            request["reqBytes"]
-        ) as string;
+export async function action(
+  params: OffchainParameter,
+): Promise<ServerActionResponse> {
+  const request = getParsedRequest(params);
+  try {
+    const tokenSymbol = web3.eth.abi.decodeParameter(
+      "string",
+      request["reqBytes"],
+    ) as string;
 
-        const headers = {
-            accept: "application/json",
-            "x-access-token": process.env.COINRANKING_API_KEY,
-        };
+    const headers = {
+      accept: "application/json",
+      "x-access-token": process.env.COINRANKING_API_KEY,
+    };
 
-        const coinListResponse = await axios.get(
-            "https://api.coinranking.com/v2/coins",
-            {headers}
-        );
-        const token = coinListResponse.data.data.coins.find(
-            (c: any) => c.symbol === tokenSymbol
-        );
+    const coinListResponse = await axios.get(
+      "https://api.coinranking.com/v2/coins",
+      { headers },
+    );
+    const token = coinListResponse.data.data.coins.find(
+      (c: any) => c.symbol === tokenSymbol,
+    );
 
-        if (!token) {
-            throw new Error(`Token ${tokenSymbol} not found`);
-        }
-
-        const priceResponse = await axios.get(
-            `https://api.coinranking.com/v2/coin/${token.uuid}/price`,
-            {headers}
-        );
-
-        const tokenPrice = priceResponse.data.data.price;
-        const encodedTokenPrice = web3.eth.abi.encodeParameter("string", tokenPrice);
-
-        return generateResponseV7(request, 0, encodedTokenPrice);
-    } catch (error: any) {
-        return generateResponseV7(request, 1, web3.utils.asciiToHex(error.message));
+    if (!token) {
+      throw new Error(`Token ${tokenSymbol} not found`);
     }
+
+    const priceResponse = await axios.get(
+      `https://api.coinranking.com/v2/coin/${token.uuid}/price`,
+      { headers },
+    );
+
+    const tokenPrice = priceResponse.data.data.price;
+    const encodedTokenPrice = web3.eth.abi.encodeParameter(
+      "string",
+      tokenPrice,
+    );
+
+    return generateResponseV7(request, 0, encodedTokenPrice);
+  } catch (error: any) {
+    return generateResponseV7(request, 1, web3.utils.asciiToHex(error.message));
+  }
 }
 ```
 
@@ -90,20 +95,21 @@ The SDK also includes a `UserOpManager` for creating and managing smart accounts
 
 ### Creating a Smart Account
 
-Create a new smart account with an EOA (Externally Owned Account) as the owner:
+1. Create your Smart Account here: https://hub.boba.network/smartaccount
+2. To create a new smart account with an EOA (Externally Owned Account) as the owner:
 
 ```typescript
-import { UserOpManager } from '@bobanetwork/aa-hc-sdk-server';
-import Web3 from 'web3';
+import { UserOpManager } from "@bobanetwork/aa-hc-sdk-server";
+import Web3 from "web3";
 
-const RPC = "https://boba-sepolia.gateway.tenderly.co";
+const RPC = "https://sepolia.boba.network";
 const BUNDLER = "https://bundler-hc.sepolia.boba.network/rpc";
 const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 const CHAIN_ID = 28882;
 
 // Account that will pay for the creation transaction
-const senderAddress = '0xYourSenderAddress';
-const privateKey = 'your-private-key';
+const senderAddress = "0xYourSenderAddress"; // Your Smart Account
+const privateKey = "your-private-key";
 
 // Initialize the UserOpManager
 const userOpManager = new UserOpManager(RPC, BUNDLER, ENTRY_POINT, CHAIN_ID);
@@ -115,14 +121,14 @@ const ownerAddress = ownerAccount.address;
 
 // Create the smart account
 const result = await userOpManager.createSmartAccount(
-    senderAddress,  // Sender of OP
-    privateKey,     // Signer
-    ownerAddress,   // New Owner
-    123             // Salt for deterministic address (optional, defaults to 100)
+  senderAddress, // Sender of OP
+  privateKey, // Signer
+  ownerAddress, // New Owner
+  123, // Salt for deterministic address (optional, defaults to 100)
 );
 
-console.log('Smart Account Address:', result.smartAccountAddress);
-console.log('Transaction Receipt:', result.receipt);
+console.log("Smart Account Address:", result.smartAccountAddress);
+console.log("Transaction Receipt:", result.receipt);
 ```
 
 ### Sending Custom User Operations
@@ -133,35 +139,36 @@ see `custom-userop-example.spec.ts` for a full example
 
 ```typescript
 // Example: Call a fetchPrice function on a contract
-const contractAddress = '0x704bc4e8f85f60f77e753d5f3f55e3f1c569586f';
-const sender = '0xYourSenderAddress'; // Smart Account
+const contractAddress = "0x704bc4e8f85f60f77e753d5f3f55e3f1c569586f";
+const sender = "0xYourSenderAddress"; // Smart Account
 
 // Encode the function call
-const token = 'ETH';
-const encodedToken = web3.eth.abi.encodeParameter('string', token);
-const calldata = userOpManager.selector('fetchPrice(string)') + encodedToken.slice(2);
+const token = "ETH";
+const encodedToken = web3.eth.abi.encodeParameter("string", token);
+const calldata =
+  userOpManager.selector("fetchPrice(string)") + encodedToken.slice(2);
 
 // Step 1: Build the UserOperation
 const userOp = await userOpManager.buildOp(
-    sender,              // Sender
-    contractAddress,     // Contract to call
-    0,                   // Value to send (0 for function calls)
-    calldata,            // Encoded function call
-    0                    // Nonce key (optional)
+  sender, // Sender
+  contractAddress, // Contract to call
+  0, // Value to send (0 for function calls)
+  calldata, // Encoded function call
+  0, // Nonce key (optional)
 );
 
 // Step 2: Estimate gas
 const { success, op: estimatedOp } = await userOpManager.estimateOp(userOp);
 
 if (!success) {
-    throw new Error('Gas estimation failed');
+  throw new Error("Gas estimation failed");
 }
 
 // Step 3: Sign and submit
 const receipt = await userOpManager.signSubmitOp(estimatedOp, privateKey);
 
-console.log('Operation Hash:', receipt.userOpHash);
-console.log('Transaction Status:', receipt.receipt.status);
+console.log("Operation Hash:", receipt.userOpHash);
+console.log("Transaction Status:", receipt.receipt.status);
 ```
 
 ### Verifying Smart Account Owner
@@ -169,9 +176,9 @@ console.log('Transaction Status:', receipt.receipt.status);
 Check the owner of any smart account:
 
 ```typescript
-const contractAddress = '0xSmartAccountAddress';
+const contractAddress = "0xSmartAccountAddress";
 const owner = await userOpManager.getOwner(contractAddress);
-console.log('Contract Owner:', owner);
+console.log("Contract Owner:", owner);
 ```
 
 ### UserOpManager Methods
@@ -203,18 +210,18 @@ The `UserOperationV7` interface represents an ERC-4337 v0.7 UserOperation:
 
 ```typescript
 interface UserOperationV7 {
-    sender: string;                // Smart account address
-    nonce: string;                 // Unique transaction number
-    callData: string;              // Encoded function call
-    callGasLimit: string;          // Gas limit for the main call
-    verificationGasLimit: string;  // Gas limit for verification
-    preVerificationGas: string;    // Gas for bundler overhead
-    maxFeePerGas: string;          // Maximum gas fee
-    maxPriorityFeePerGas: string;  // Maximum priority fee
-    signature: string;             // Signature for verification
-    paymasterAndData?: string;     // Paymaster data (optional)
-    accountGasLimits?: string;     // Packed gas limits (v0.7)
-    gasFees?: string;              // Packed fee data (v0.7)
+  sender: string; // Smart account address
+  nonce: string; // Unique transaction number
+  callData: string; // Encoded function call
+  callGasLimit: string; // Gas limit for the main call
+  verificationGasLimit: string; // Gas limit for verification
+  preVerificationGas: string; // Gas for bundler overhead
+  maxFeePerGas: string; // Maximum gas fee
+  maxPriorityFeePerGas: string; // Maximum priority fee
+  signature: string; // Signature for verification
+  paymasterAndData?: string; // Paymaster data (optional)
+  accountGasLimits?: string; // Packed gas limits (v0.7)
+  gasFees?: string; // Packed fee data (v0.7)
 }
 ```
 
@@ -225,7 +232,7 @@ interface UserOperationV7 {
 #### Constructor
 
 ```typescript
-constructor()
+constructor();
 ```
 
 #### Methods
