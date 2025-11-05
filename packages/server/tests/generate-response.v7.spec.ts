@@ -1,8 +1,7 @@
-import { generateResponseV7 } from "../src/utils";
-import Web3 from "web3";
+import { generateResponseV7 } from "../src";
+import {hexToBytes, stringToHex} from "viem";
 
 describe("generateResponseV7 - Production Data Verification", () => {
-  const web3 = new Web3();
 
   beforeAll(() => {
     process.env.HC_HELPER_ADDR = "0x11c4DbbaC4A0A47a7c76b5603bc219c5dAe752D6";
@@ -30,7 +29,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         reqBytes:
           "000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000",
         srcNonce: BigInt("2"), // From src_nonce in logs
-        skey: web3.utils.hexToBytes(
+        skey: hexToBytes(
           "0x92ca68dd4634511b7d08a8ecac91171835546f11014d60e5117acb395fbe54cd",
         ),
         opNonce: BigInt(
@@ -56,7 +55,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         reqBytes:
           "000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000",
         srcNonce: BigInt("2"),
-        skey: web3.utils.hexToBytes(
+        skey: hexToBytes(
           "0x92ca68dd4634511b7d08a8ecac91171835546f11014d60e5117acb395fbe54cd",
         ),
         opNonce: BigInt(
@@ -64,7 +63,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         ),
       };
 
-      const errorPayload = web3.utils.utf8ToHex("Error occurred");
+      const errorPayload = stringToHex("Error occurred");
       const result = await generateResponseV7(request, 1, errorPayload);
 
       expect(result.success).toBe(false);
@@ -91,7 +90,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
       process.env.OC_HYBRID_ACCOUNT =
         "0x77fbd8f873e9361241161de136ad47883722b971";
 
-      const payload = web3.utils.utf8ToHex("payload");
+      const payload = stringToHex("payload");
       const result = await generateResponseV7(request, 0, payload);
 
       expect(result.success).toBe(true);
@@ -126,7 +125,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         opNonce: BigInt(789012),
       };
 
-      const payload = web3.utils.utf8ToHex("payload");
+      const payload = stringToHex("payload");
 
       const result1 = await generateResponseV7(request, 0, payload);
       const result2 = await generateResponseV7(request, 0, payload);
@@ -145,8 +144,8 @@ describe("generateResponseV7 - Production Data Verification", () => {
         opNonce: BigInt(789012),
       };
 
-      const smallPayload = web3.utils.utf8ToHex("small");
-      const largePayload = web3.utils.utf8ToHex(
+      const smallPayload = stringToHex("small");
+      const largePayload = stringToHex(
         "this is a much larger payload that should still work correctly",
       );
 
@@ -167,7 +166,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
         opNonce: BigInt("340282366920938463463374607431768211455"), // Max uint128
       };
 
-      const payload = web3.utils.utf8ToHex("test");
+      const payload = stringToHex("test");
       const result = await generateResponseV7(request, 0, payload);
 
       expect(result.signature).toBeDefined();
@@ -187,7 +186,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
       };
 
       await expect(async () => {
-        await generateResponseV7(request, 0, web3.utils.utf8ToHex("test"));
+        await generateResponseV7(request, 0, stringToHex("test"));
       }).rejects.toThrow("One or more required environment variables are not defined");
     });
 
@@ -224,7 +223,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
           opNonce: BigInt(789012),
         };
 
-        const payload = web3.utils.utf8ToHex("test");
+        const payload = stringToHex("test");
         const result = await generateResponseV7(request, 0, payload);
 
         expect(result.signature).toMatch(/^0x[0-9a-fA-F]{130}$/);
@@ -239,7 +238,7 @@ describe("generateResponseV7 - Production Data Verification", () => {
           opNonce: BigInt(789012),
         };
 
-        const payload = web3.utils.utf8ToHex("test");
+        const payload = stringToHex("test");
 
         // First signature
         const result1 = await generateResponseV7(request, 0, payload);
