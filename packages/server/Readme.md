@@ -1,9 +1,5 @@
 # Hybrid Compute Server SDK
 
-<img src="coverage/badge-lines.svg" alt="Line Coverage">
-<img src="coverage/badge-functions.svg" alt="Function Coverage">
-<img src="coverage/badge-branches.svg" alt="Branch Coverage">
-
 The **Hybrid Compute Server SDK** provides:
 
 - Server-side JSON-RPC server utilities for **Hybrid Compute** actions.
