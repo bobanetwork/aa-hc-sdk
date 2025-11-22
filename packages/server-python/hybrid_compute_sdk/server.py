@@ -4,6 +4,8 @@ from web3 import Web3
 from eth_abi import abi as ethabi
 import eth_account
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+from pathlib import Path
+import importlib
 
 class RequestHandler(SimpleJSONRPCRequestHandler):
     rpc_paths = ('/', '/hc')
@@ -12,7 +14,12 @@ class HybridComputeSDK:
     def __init__(self):
         self.server = None
         try:
-            self.EP_ADDR = os.environ['ENTRY_POINTS']
+            if 'ENTRY_POINTS' in os.environ:
+                self.EP_ADDR = os.environ['ENTRY_POINTS']
+            else:
+                # This is standard for EntryPoint v0.7, which is currently
+                # the only supported version for Hybrid Compute
+                self.EP_ADDR = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
             self.HC_CHAIN = int(os.environ['CHAIN_ID'])
             self.HH_ADDR = os.environ['HC_HELPER_ADDR']
             self.HA_ADDR = os.environ['OC_HYBRID_ACCOUNT']
@@ -51,6 +58,23 @@ class HybridComputeSDK:
     def add_server_action(self, selector_name, action):
         self.server.register_function(action, self.selector(selector_name))
         return self
+
+    def import_handler(self, path):
+        """Load an offchain handler"""
+        mod_name = "handler_" + Path(path).stem
+        spec = importlib.util.spec_from_file_location(mod_name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.get_handlers()
+
+    def register_handlers(self, dir_path):
+        """Load and register all handlers in a dir"""
+        for filename in os.listdir(dir_path):
+            if not filename.endswith(".py"):
+                continue
+            methods = self.import_handler(dir_path+"/"+filename)
+            for m in methods:
+                self.add_server_action(m[0], m[1])
 
     def serve_forever(self):
         if self.server:
@@ -130,7 +154,6 @@ class HybridComputeSDK:
             "response": Web3.to_hex(resp_payload),
             "signature": Web3.to_hex(sig.signature)
         }
-
 
     def parse_req(self, sk, src_addr, src_nonce, oo_nonce, payload):
         req = {}

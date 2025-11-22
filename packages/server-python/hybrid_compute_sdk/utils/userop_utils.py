@@ -6,16 +6,11 @@ import sys
 from web3 import Web3
 import eth_account
 
-
 """
 --- Outsource into shared usage or bundle within SDK
 """
 
-
 load_dotenv(find_dotenv())
-
-sys.path.append(".") # Workaround until aa_utils etc. can be packaged properly
-from .aa_utils import *
 
 EP_ADDR = os.environ['ENTRY_POINTS']
 assert len(EP_ADDR) == 42
