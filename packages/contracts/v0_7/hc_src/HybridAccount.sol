@@ -9,12 +9,13 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "account-abstraction/v0_7/core/BaseAccount.sol";
-import "account-abstraction/v0_7/core/Helpers.sol";
-import "account-abstraction/v0_7/samples/callback/TokenCallbackHandler.sol";
+import "@account-abstraction/core/BaseAccount.sol";
+import "@account-abstraction/core/Helpers.sol";
+import "@account-abstraction/samples/callback/TokenCallbackHandler.sol";
 
 interface IHCHelper {
   function TryCallOffchain(bytes32, bytes memory) external returns (uint32, bytes memory);
+  function SelfRegister(string calldata url) external returns (bool);
 }
 
 /**
@@ -32,6 +33,9 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     address public immutable _helperAddr;
 
     event HybridAccountInitialized(IEntryPoint indexed entryPoint, address indexed owner);
+
+    // Vesion identifier
+    string public constant version = "0.5.0";
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -155,6 +159,11 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
         _onlyOwner();
     }
 
+    /** Control which contracts may use this HybridAccount. Restrictions ensure that only authorized
+      * contracts may consume prepaid credits in HCHelper by making requests through this account. It
+      * is the developer's responsibility to add any addtional billing schemes between the HybridAccount
+      * and the PermittedCallers.
+      */
     function PermitCaller(address caller, bool allowed) public {
       _requireFromEntryPointOrOwner();
       PermittedCallers[caller] = allowed;
@@ -163,11 +172,21 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     function CallOffchain(bytes32 userKey, bytes memory req) public returns (uint32, bytes memory) {
        /* By default a simple whitelist is used. Endpoint implementations may choose to allow
           unrestricted access, to use a custom permission model, to charge fees, etc. */
-       require(_helperAddr != address(0), "Helper address not set");
        require(PermittedCallers[msg.sender], "Permission denied");
+       require(_helperAddr != address(0), "Helper address not set");
        IHCHelper HC = IHCHelper(_helperAddr);
 
        userKey = keccak256(abi.encodePacked(userKey, msg.sender));
        return HC.TryCallOffchain(userKey, req);
+    }
+
+    /**
+     * Register an offchain URL with HCHelper. This triggers an offchain request in which the
+     * server must accept a request for this account's address.
+     */
+    function RegisterUrl(string calldata url) public onlyOwner {
+        IHCHelper HC = IHCHelper(_helperAddr);
+        bool success = HC.SelfRegister(url);
+        require(success, "URL registration was not successful");
     }
 }
