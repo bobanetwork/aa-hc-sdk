@@ -36,6 +36,7 @@ export type CreateSmartAccountParams = {
 
 export type GetExpectedAddressParams = {
   salt: number | string;
+  accountType?: 'simple' | 'hybrid';
 };
 
 export type OffchainParameterParsed = {

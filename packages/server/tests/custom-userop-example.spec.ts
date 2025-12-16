@@ -24,13 +24,13 @@ describe("Custom User Operation SDK Tests", () => {
       throw new Error("CLIENT_PRIVATE_KEY not found");
     }
 
-    userOpManager = new UserOpManager(
-      RPC,
-      BUNDLER,
-      ENTRY_POINT,
-      CHAIN_ID,
-      PRIVATE_KEY,
-    );
+    userOpManager = new UserOpManager({
+      nodeUrl: RPC,
+      bundlerUrl: BUNDLER,
+      entryPoint: ENTRY_POINT,
+      chainId: CHAIN_ID,
+      privateKey: PRIVATE_KEY,
+    });
   });
   it("should call fetchPrice(string) via UserOperation", async () => {
     const token = "ETH";
@@ -62,6 +62,21 @@ describe("Custom User Operation SDK Tests", () => {
     expect(receipt).toBeDefined();
     expect(receipt.success).toBe(true);
     expect(receipt.receipt.status).toBe("0x1");
+  }, 60000);
+
+  it("should create a hybrid account on testnet", async () => {
+    const salt = new Date().getTime();
+    const expectedAddress = await userOpManager.getExpectedAddress({ salt, accountType: 'hybrid' });
+    
+    const result = await userOpManager.createHybridAccount({
+      salt,
+    });
+    
+    console.log("Hybrid Account Result:", result);
+    expect(result).toBeDefined();
+    expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(result.address).toEqual(expectedAddress);
+    expect(result.receipt).toBeDefined();
   }, 60000);
 
   it.skip("should create a new smart account and send a user operation", async () => {

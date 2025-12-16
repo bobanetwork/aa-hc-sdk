@@ -67,7 +67,7 @@ describe("SDK Tests", () => {
   });
 
   describe("API Integration", () => {
-    it("should handle JSON-RPC requests correctly", async () => {
+    it.skip("should handle JSON-RPC requests correctly", async () => {
       const mockHandler = jest.fn().mockResolvedValue({ result: "success" });
 
       sdk

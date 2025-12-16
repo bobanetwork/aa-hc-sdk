@@ -15,7 +15,18 @@ import {
     slice,
 } from "viem";
 import {privateKeyToAccount} from "viem/accounts";
-import {bobaSepolia} from "viem/chains";
+import {boba, bobaSepolia} from "viem/chains";
+import {contractConfig} from "./config";
+
+export interface UserOpManagerConfig {
+    nodeUrl: string;
+    bundlerUrl: string;
+    entryPoint: string;
+    chainId: number;
+    privateKey: string;
+    simpleAccountFactoryAddress?: string;
+    hybridAccountFactoryAddress?: string;
+}
 
 export class UserOpManager {
     private publicClient: any;
@@ -26,26 +37,36 @@ export class UserOpManager {
     private privateKey: string;
     private account: any;
     private readonly entrypointV7 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-    private readonly factoryAddress =
-        "0x9aC904d8DfeA0866aB341208700dCA9207834DeB";
+    private simpleAccountFactoryAddress;
+    private hybridAccountFactoryAddress;
 
-    constructor(
-        nodeUrl: string,
-        bundlerUrl: string,
-        entryPoint: string,
-        chainId: number,
-        privateKey: string,
-    ) {
+    constructor(config: UserOpManagerConfig) {
         this.publicClient = createPublicClient({
-            chain: bobaSepolia,
-            transport: http(nodeUrl),
+            chain: config.chainId === boba.id ? boba : bobaSepolia,
+            transport: http(config.nodeUrl),
         });
-        this.account = privateKeyToAccount(privateKey as `0x${string}`);
-        this.nodeUrl = nodeUrl;
-        this.bundlerUrl = bundlerUrl;
-        this.entryPoint = entryPoint;
-        this.chainId = chainId;
-        this.privateKey = privateKey;
+        this.account = privateKeyToAccount(config.privateKey as `0x${string}`);
+        this.nodeUrl = config.nodeUrl;
+        this.bundlerUrl = config.bundlerUrl;
+        this.entryPoint = config.entryPoint;
+        this.chainId = config.chainId;
+        this.privateKey = config.privateKey;
+        
+        if (config.simpleAccountFactoryAddress) {
+            this.simpleAccountFactoryAddress = config.simpleAccountFactoryAddress;
+        } else {
+            this.simpleAccountFactoryAddress = this.chainId === boba.id 
+                ? contractConfig.boba_mainnet.simpleAccountFactory 
+                : contractConfig.boba_sepolia.simpleAccountFactory;
+        }
+        
+        if (config.hybridAccountFactoryAddress) {
+            this.hybridAccountFactoryAddress = config.hybridAccountFactoryAddress;
+        } else {
+            this.hybridAccountFactoryAddress = this.chainId === boba.id 
+                ? contractConfig.boba_mainnet.hybridAccountFactory 
+                : contractConfig.boba_sepolia.hybridAccountFactory;
+        }
     }
 
     selector(signature: string): string {
@@ -131,6 +152,13 @@ export class UserOpManager {
         };
     }
 
+    public getAccountFactoryAddress() {
+        return this.simpleAccountFactoryAddress
+    }
+    public getBundlerUrl() {
+        return this.bundlerUrl;
+    }
+
     public getEntrypoint() {
         return this.entryPoint;
     }
@@ -162,10 +190,9 @@ export class UserOpManager {
 
             if (result.error) {
                 console.error("Gas estimation failed:", result.error);
-                // Use fallback gas values if estimation fails
                 if (this.isV7Entrypoint()) {
-                    const fallbackVerificationGas = 70000;
-                    const fallbackCallGas = 100000;
+                    const fallbackVerificationGas = 200000;
+                    const fallbackCallGas = 150000;
                     
                     op.verificationGasLimit = numberToHex(fallbackVerificationGas);
                     op.callGasLimit = numberToHex(fallbackCallGas);
@@ -347,7 +374,7 @@ export class UserOpManager {
             : (account.address as `0x${string}`);
 
         const smartAccountAddress = await publicClient.readContract({
-            address: this.factoryAddress as `0x${string}`,
+            address: this.simpleAccountFactoryAddress as `0x${string}`,
             abi: ACCOUNT_FACTORY_ABI,
             functionName: "getAddress",
             args: [newOwner, saltBI],
@@ -363,12 +390,12 @@ export class UserOpManager {
 
         const gas = await publicClient.estimateGas({
             account,
-            to: this.factoryAddress as `0x${string}`,
+            to: this.simpleAccountFactoryAddress as `0x${string}`,
             data,
         });
 
         const hash = await walletClient.sendTransaction({
-            to: this.factoryAddress as `0x${string}`,
+            to: this.simpleAccountFactoryAddress as `0x${string}`,
             data,
             gas,
         });
@@ -408,17 +435,104 @@ export class UserOpManager {
         return {address: smartAccountAddress as any, receipt};
     }
 
-    async getExpectedAddress({salt}: GetExpectedAddressParams): Promise<`0x${string}`> {
+    async createHybridAccount(
+        params: CreateSmartAccountParams,
+    ): Promise<CreateResult> {
+        const account = privateKeyToAccount(this.privateKey as `0x${string}`);
+        const chain = this.chainId === boba.id ? boba : bobaSepolia;
+        const publicClient = createPublicClient({
+            chain,
+            transport: http(this.getRpc()),
+        });
+        const walletClient = createWalletClient({
+            account,
+            chain,
+            transport: http(this.getRpc()),
+        });
+        const saltBI = BigInt(params.salt);
+
+        const newOwner = params.ownerAddress
+            ? params.ownerAddress
+            : (account.address as `0x${string}`);
+
+        const hybridAccountAddress = await publicClient.readContract({
+            address: this.hybridAccountFactoryAddress as `0x${string}`,
+            abi: ACCOUNT_FACTORY_ABI,
+            functionName: "getAddress",
+            args: [newOwner, saltBI],
+        });
+
+        console.log("New Hybrid Account Address: ", hybridAccountAddress);
+
+        const data = encodeFunctionData({
+            abi: ACCOUNT_FACTORY_ABI,
+            functionName: "createAccount",
+            args: [newOwner, saltBI],
+        });
+
+        const gas = await publicClient.estimateGas({
+            account,
+            to: this.hybridAccountFactoryAddress as `0x${string}`,
+            data,
+        });
+
+        const hash = await walletClient.sendTransaction({
+            to: this.hybridAccountFactoryAddress as `0x${string}`,
+            data,
+            gas,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({hash});
+
+        const pendingNonce = await publicClient.getTransactionCount({
+            address: account.address,
+            blockTag: "pending",
+        });
+
+        try {
+            const fundHash = await walletClient.sendTransaction({
+                to: hybridAccountAddress as `0x${string}`,
+                value: parseEther("0.001"),
+                nonce: pendingNonce,
+            });
+            await publicClient.waitForTransactionReceipt({hash: fundHash});
+            console.log(`Funded ${hybridAccountAddress} with 0.001 ETH: ${fundHash}`);
+        } catch (err: any) {
+            if (String(err?.message || err).includes("nonce too low")) {
+                const nonce2 = await publicClient.getTransactionCount({
+                    address: account.address,
+                    blockTag: "pending",
+                });
+                const fundHash = await walletClient.sendTransaction({
+                    to: hybridAccountAddress as `0x${string}`,
+                    value: parseEther("0.001"),
+                    nonce: nonce2,
+                });
+                await publicClient.waitForTransactionReceipt({hash: fundHash});
+                console.log(`Funded on retry: ${fundHash}`);
+            } else {
+                throw err;
+            }
+        }
+
+        return {address: hybridAccountAddress as any, receipt};
+    }
+
+    async getExpectedAddress({salt, accountType = 'simple'}: GetExpectedAddressParams): Promise<`0x${string}`> {
         const account = privateKeyToAccount(this.privateKey as `0x${string}`);
 
+        const chain = this.chainId === boba.id ? boba : bobaSepolia;
         const publicClient = createPublicClient({
-            chain: bobaSepolia,
+            chain,
             transport: http(this.getRpc()),
         });
 
         const saltBI = BigInt(salt);
+        const factoryAddress = accountType === 'hybrid' 
+            ? this.hybridAccountFactoryAddress 
+            : this.simpleAccountFactoryAddress;
+        
         const expectedAddress = await publicClient.readContract({
-            address: this.factoryAddress as `0x${string}`,
+            address: factoryAddress as `0x${string}`,
             abi: ACCOUNT_FACTORY_ABI,
             functionName: "getAddress",
             args: [account.address, saltBI],
@@ -432,8 +546,6 @@ export class UserOpManager {
             to: contractAddress as `0x${string}`,
             data: "0x8da5cb5b",
         });
-
-        // For getOwner, we just need to return the address directly since it's already properly formatted
         return result.data as string;
     }
 }
