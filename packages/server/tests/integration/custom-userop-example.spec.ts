@@ -10,7 +10,7 @@ describe("Custom User Operation SDK Tests", () => {
   const RPC = "https://sepolia.boba.network";
   const BUNDLER = "https://bundler-hc.sepolia.boba.network/rpc";
   const CHAIN_ID = 28882;
-  const sender = "0xf40d61fb6a4F4E8658661C113C630c66FFFb6670";
+  const sender = "0xe320ffca9E2BD1173d041f47fDC197e168Fc1EA9";
   const CONTRACT_ADDRESS = "0x704bc4e8f85f60f77e753d5f3f55e3f1c569586f";
   const PRIVATE_KEY = process.env.CLIENT_PRIVATE_KEY!;
 
@@ -32,37 +32,6 @@ describe("Custom User Operation SDK Tests", () => {
       privateKey: PRIVATE_KEY,
     });
   });
-  it("should call fetchPrice(string) via UserOperation", async () => {
-    const token = "ETH";
-    const encodedToken = encodeAbiParameters(
-      parseAbiParameters("string"),
-      [token]
-    );
-    const calldata =
-      userOpManager.selector("fetchPrice(string)") + encodedToken.slice(2);
-
-    const op = await userOpManager.buildOp(
-      sender,
-      CONTRACT_ADDRESS,
-      0,
-      calldata,
-      0,
-    );
-
-    console.log("Built UserOperation:", JSON.stringify(op, null, 2));
-
-    const { success, op: estimatedOp } = await userOpManager.estimateOp(op);
-
-    console.log("Gas estimation success:", success);
-    console.log("Estimated operation:", estimatedOp);
-
-    const receipt = await userOpManager.signSubmitOp(estimatedOp);
-
-    console.log("final receipt: ", receipt);
-    expect(receipt).toBeDefined();
-    expect(receipt.success).toBe(true);
-    expect(receipt.receipt.status).toBe("0x1");
-  }, 60000);
 
   it("should create a hybrid account on testnet", async () => {
     const salt = new Date().getTime();

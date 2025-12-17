@@ -1,6 +1,6 @@
-import { UserOpManager } from "../src";
 import * as dotenv from "dotenv";
 import {boba} from "viem/chains";
+import {UserOpManager} from "../../src";
 dotenv.config();
 
 describe("User Operation Manager Tests", () => {

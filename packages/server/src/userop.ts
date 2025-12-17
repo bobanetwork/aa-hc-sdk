@@ -97,12 +97,9 @@ export class UserOpManager {
         nonceKey: number = 0,
     ): Promise<UserOperationV7> {
         const gasPrice = await this.publicClient.getGasPrice();
-        const tip = Math.max(
-            Number(gasPrice) - Number(gasPrice),
-            Number(parseGwei("0.5")),
-        );
-        const baseFee = Number(gasPrice) - tip;
-        const fee = Math.max(Number(gasPrice), 2 * baseFee + tip);
+        const tip = Number(parseGwei("0.5"));
+        const baseFee = Number(gasPrice);
+        const fee = Math.floor(Number(gasPrice) * 1.1);
 
         const encodedParams = encodeAbiParameters(
             parseAbiParameters("address, uint256, bytes"),
@@ -111,29 +108,8 @@ export class UserOpManager {
         const executeCalldata =
             this.selector("execute(address,uint256,bytes)") + encodedParams.slice(2);
 
-        // For v0.7, we need to include the packed gas limits and fees
-        const verificationGasLimit = 0; //250000; // Default verification gas
-        const callGasLimit = 0; //200000; // Default call gas
-
-        const accountGasLimits =
-            encodeAbiParameters(
-                parseAbiParameters("uint128"),
-                [BigInt(verificationGasLimit)],
-            ).slice(34) +
-            encodeAbiParameters(
-                parseAbiParameters("uint128"),
-                [BigInt(callGasLimit)],
-            ).slice(34);
-
-        const gasFees =
-            encodeAbiParameters(
-                parseAbiParameters("uint128"),
-                [BigInt(tip)],
-            ).slice(34) +
-            encodeAbiParameters(
-                parseAbiParameters("uint128"),
-                [BigInt(fee)],
-            ).slice(34);
+        const verificationGasLimit = 0;
+        const callGasLimit = 0;
 
         return {
             sender,
@@ -141,14 +117,11 @@ export class UserOpManager {
             callData: executeCalldata,
             callGasLimit: numberToHex(callGasLimit),
             verificationGasLimit: numberToHex(verificationGasLimit),
-            preVerificationGas: numberToHex(45000), // Default preVerificationGas
+            preVerificationGas: "0x0",
             maxFeePerGas: numberToHex(fee),
             maxPriorityFeePerGas: numberToHex(tip),
             signature:
                 "0xfffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c",
-            paymasterAndData: "0x",
-            accountGasLimits: "0x" + accountGasLimits,
-            gasFees: "0x" + gasFees,
         };
     }
 
@@ -190,52 +163,13 @@ export class UserOpManager {
 
             if (result.error) {
                 console.error("Gas estimation failed:", result.error);
-                if (this.isV7Entrypoint()) {
-                    const fallbackVerificationGas = 200000;
-                    const fallbackCallGas = 150000;
-                    
-                    op.verificationGasLimit = numberToHex(fallbackVerificationGas);
-                    op.callGasLimit = numberToHex(fallbackCallGas);
-                    op.preVerificationGas = numberToHex(50000);
-                    
-                    const accountGasLimits =
-                        encodeAbiParameters(
-                            parseAbiParameters("uint128"),
-                            [BigInt(fallbackVerificationGas)],
-                        ).slice(34) +
-                        encodeAbiParameters(
-                            parseAbiParameters("uint128"),
-                            [BigInt(fallbackCallGas)],
-                        ).slice(34);
-
-                    op.accountGasLimits = "0x" + accountGasLimits;
-                }
-                return {success: true, op}; // Continue with fallback values
+                return {success: false, op};
             }
 
             const estimates = result.result;
             op.preVerificationGas = estimates.preVerificationGas;
             op.verificationGasLimit = estimates.verificationGasLimit;
             op.callGasLimit = estimates.callGasLimit;
-
-            // For v0.7, we need to update the packed gas fields
-            if (this.isV7Entrypoint()) {
-                const verificationGas = hexToNumber(estimates.verificationGasLimit as `0x${string}`);
-                const callGas = Math.max(hexToNumber(estimates.callGasLimit as `0x${string}`), 21000); // Ensure minimum gas
-                
-                const accountGasLimits =
-                    encodeAbiParameters(
-                        parseAbiParameters("uint128"),
-                        [BigInt(verificationGas)],
-                    ).slice(34) +
-                    encodeAbiParameters(
-                        parseAbiParameters("uint128"),
-                        [BigInt(callGas)],
-                    ).slice(34);
-
-                op.accountGasLimits = "0x" + accountGasLimits;
-                op.callGasLimit = numberToHex(callGas); // Update the individual field too
-            }
 
             return {success: true, op};
         } catch (error) {
@@ -294,6 +228,13 @@ export class UserOpManager {
         op.signature = await this.account.signMessage({
             message: {raw: messageHash},
         });
+        
+        op.accountGasLimits = "0x" + accountGasLimits;
+        op.gasFees = "0x" + gasFees;
+        if (!op.paymasterAndData) {
+            op.paymasterAndData = "0x";
+        }
+        
         return op;
     }
 

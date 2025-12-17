@@ -1,9 +1,5 @@
-import {
-  selector,
-  generateResponseV6,
-  getParsedRequest,
-} from "../src/utils";
 import {encodeAbiParameters, parseAbiParameters} from "viem";
+import {generateResponseV6, getParsedRequest, selector} from "../../src/utils";
 
 describe("Generation Response V6", () => {
   const INIT_WORKING_PARAMS = {

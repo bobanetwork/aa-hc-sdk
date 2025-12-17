@@ -9,6 +9,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
+import { log } from "console";
 
 export type CreateResult = { address: string; receipt: any };
 
@@ -71,7 +72,7 @@ export interface ServerActionResponse {
   signature: string;
 }
 
-export function selector(name: string): string {
+function selector(name: string): string {
     const hash = keccak256(toBytes(name));
     return hash.slice(2, 10);
 }
@@ -115,19 +116,9 @@ function getParsedRequest(params: OffchainParameter): Request {
     } as const;
 }
 
-function decodeAbi(
-  types: string[],
-  data: string,
-): { [key: string]: unknown; __length__: number } {
-  // Note: VIEM doesn't have a direct equivalent to Web3's decodeParameters with named properties
-  // This would need to be handled differently based on the specific use case
-  // For now, we'll throw an error to identify where this is used so we can handle it properly
-  throw new Error("decodeAbi function needs specific VIEM implementation based on usage context");
-}
-
 /**
  * V6 EntryPoint compliant generateResponse implementation
- * This is not compatible with EntryPoint v0.7 ()
+ * This is not compatible with EntryPoint v0.7() and currently turned-off
  * Generates and returns a response object with a signed payload.
  *
  * This function takes a request object, an error code, and a response payload,
@@ -141,6 +132,7 @@ function decodeAbi(
  * @param {string} respPayload - The response payload to include.
  * @returns {object} - An object containing the success status, response payload, and signature.
  * @throws {Error}
+ * @deprecated ("Deprecated in favor of v7, this is for documentation purposes")
  */
 const generateResponseV6 = async (
   req: {
@@ -264,102 +256,99 @@ const generateResponseV6 = async (
  */
 const generateResponseV7 = async (
   req: {
-    readonly srcAddr: string;
-    readonly reqBytes: string;
-    readonly srcNonce: bigint | number;
-    readonly skey: Uint8Array;
-    readonly opNonce: bigint | number;
+      readonly srcAddr: string;
+      readonly reqBytes: string;
+      readonly srcNonce: bigint | number;
+      readonly skey: Uint8Array;
+      readonly opNonce: bigint | number;
   },
   errorCode: number,
   respPayload: any,
 ): Promise<ServerActionResponse> => {
   if (
-    !process.env.HC_HELPER_ADDR ||
-    !process.env.OC_HYBRID_ACCOUNT ||
-    !process.env.CHAIN_ID ||
-    !process.env.OC_PRIVKEY ||
-    !process.env.ENTRY_POINTS
+      !process.env.HC_HELPER_ADDR ||
+      !process.env.OC_HYBRID_ACCOUNT ||
+      !process.env.CHAIN_ID ||
+      !process.env.OC_PRIVKEY ||
+      !process.env.ENTRY_POINTS
   ) {
-    throw new Error(
-      "One or more required environment variables are not defined",
-    );
+      throw new Error(
+          "One or more required environment variables are not defined",
+      );
   }
 
-  const resp2 = encodeAbiParameters(
-    parseAbiParameters("address, uint256, uint32, bytes"),
-    [req.srcAddr as `0x${string}`, BigInt(req.srcNonce), errorCode, respPayload as `0x${string}`],
+  const err_code = errorCode;
+
+  const enc_merged_response = encodeAbiParameters(
+      parseAbiParameters("address, uint256, uint32, bytes"),
+      [req.srcAddr.toLowerCase() as `0x${string}`, BigInt(req.srcNonce), err_code, respPayload as `0x${string}`],
   );
 
-  const putResponseCallData = encodeAbiParameters(
-    parseAbiParameters("bytes32, bytes"),
-    [toHex(req.skey), resp2],
+  const p1_enc = encodeAbiParameters(
+      parseAbiParameters("bytes32, bytes"),
+      [toHex(req.skey), enc_merged_response as `0x${string}`],
   );
-  const p_enc1 =
-    selectorHex("PutResponse(bytes32,bytes)") + putResponseCallData.slice(2);
+  const putResponseCallData = "0x" + selector("PutResponse(bytes32,bytes)") + p1_enc.slice(2);
 
-  const executeCallData = encodeAbiParameters(
-    parseAbiParameters("address, uint256, bytes"),
-    [checksumAddress(process.env.HC_HELPER_ADDR as `0x${string}`), BigInt(0), p_enc1 as `0x${string}`],
+  const p2_enc = encodeAbiParameters(
+      parseAbiParameters("address, uint256, bytes"),
+      [process.env.HC_HELPER_ADDR.toLowerCase() as `0x${string}`, BigInt(0), putResponseCallData as `0x${string}`],
   );
-  const p_enc2 =
-    selectorHex("execute(address,uint256,bytes)") + executeCallData.slice(2);
-
-  const limits = {
-    verificationGasLimit: "0x10000",
-    preVerificationGas: "0x10000",
-  };
+  const executeCallData = "0x" + selector("execute(address,uint256,bytes)") + p2_enc.slice(2);
 
   const respPayloadBytes = hexToBytes(respPayload as `0x${string}`);
-  const callGas = 705 * respPayloadBytes.length + 170000;
+  const call_gas_limit = 705 * respPayloadBytes.length + 170000;
+  const verification_gas_limit = 0x10000;
+  const pre_verification_gas = 0x10000;
 
   const verificationGasEncoded = encodeAbiParameters(
-    parseAbiParameters("uint128"),
-    [BigInt(hexToNumber(limits.verificationGasLimit as `0x${string}`))],
+      parseAbiParameters("uint128"),
+      [BigInt(verification_gas_limit)],
   );
   const callGasEncoded = encodeAbiParameters(
-    parseAbiParameters("uint128"),
-    [BigInt(callGas)],
+      parseAbiParameters("uint128"),
+      [BigInt(call_gas_limit)],
   );
 
-  const verificationGasPart = verificationGasEncoded.slice(34, 66); // 32 chars
-  const callGasPart = callGasEncoded.slice(34, 66); // 32 chars
-  const accountGasLimits = "0x" + verificationGasPart + callGasPart;
+  const verificationGasPart = verificationGasEncoded.slice(34, 66);
+  const callGasPart = callGasEncoded.slice(34, 66);
+  const accountGasLimits = ("0x" + verificationGasPart + callGasPart) as `0x${string}`;
 
   const initCodeHash = keccak256("0x");
-  const callDataHash = keccak256(p_enc2 as `0x${string}`);
+  const callDataHash = keccak256(executeCallData as `0x${string}`);
   const paymasterAndDataHash = keccak256("0x");
 
   const packed = encodeAbiParameters(
-    parseAbiParameters("address, uint256, bytes32, bytes32, bytes32, uint256, bytes32, bytes32"),
-    [
-      process.env.OC_HYBRID_ACCOUNT as `0x${string}`,
-      BigInt(req.opNonce),
-      initCodeHash,
-      callDataHash,
-      accountGasLimits as `0x${string}`,
-      BigInt(hexToNumber(limits.preVerificationGas as `0x${string}`)),
-      ("0x" + "0".repeat(64)) as `0x${string}`,
-      paymasterAndDataHash,
-    ],
+      parseAbiParameters("address, uint256, bytes32, bytes32, bytes32, uint256, bytes32, bytes32"),
+      [
+          process.env.OC_HYBRID_ACCOUNT!.toLowerCase() as `0x${string}`,
+          BigInt(req.opNonce),
+          initCodeHash,
+          callDataHash,
+          accountGasLimits,
+          BigInt(pre_verification_gas),
+          ("0x" + "0".repeat(64)) as `0x${string}`,
+          paymasterAndDataHash,
+      ],
   );
 
   const packedHash = keccak256(packed);
   const ooHash = keccak256(
-    encodeAbiParameters(
-      parseAbiParameters("bytes32, address, uint256"),
-      [packedHash, process.env.ENTRY_POINTS as `0x${string}`, BigInt(process.env.CHAIN_ID)],
-    ),
+      encodeAbiParameters(
+          parseAbiParameters("bytes32, address, uint256"),
+          [packedHash, process.env.ENTRY_POINTS!.toLowerCase() as `0x${string}`, BigInt(process.env.CHAIN_ID!)],
+      ),
   );
 
   const account = privateKeyToAccount(process.env.OC_PRIVKEY! as `0x${string}`);
   const signature = await account.signMessage({
-    message: { raw: ooHash },
+      message: { raw: ooHash },
   });
 
   return {
-    success: errorCode === 0,
-    response: respPayload,
-    signature: signature,
+      success: errorCode === 0,
+      response: respPayload,
+      signature: signature,
   };
 };
 
@@ -367,7 +356,7 @@ export {
   getParsedRequest,
   parseOffchainParameter,
   parseRequest,
-  decodeAbi,
   generateResponseV6,
   generateResponseV7,
+  selector
 };
