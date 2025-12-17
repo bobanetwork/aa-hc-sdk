@@ -1,15 +1,17 @@
 import {
-    keccak256,
-    toHex,
-    hexToBytes,
     checksumAddress,
-    hexToNumber,
     encodeAbiParameters,
-    parseAbiParameters, toBytes, padHex, hexToBigInt,
+    hexToBigInt,
+    hexToBytes,
+    hexToNumber,
+    keccak256,
+    padHex,
+    parseAbiParameters,
+    toBytes,
+    toHex,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import {privateKeyToAccount} from "viem/accounts";
 import "dotenv/config";
-import { log } from "console";
 
 export type CreateResult = { address: string; receipt: any };
 
@@ -277,11 +279,9 @@ const generateResponseV7 = async (
       );
   }
 
-  const err_code = errorCode;
-
   const enc_merged_response = encodeAbiParameters(
       parseAbiParameters("address, uint256, uint32, bytes"),
-      [req.srcAddr.toLowerCase() as `0x${string}`, BigInt(req.srcNonce), err_code, respPayload as `0x${string}`],
+      [req.srcAddr.toLowerCase() as `0x${string}`, BigInt(req.srcNonce), errorCode, respPayload as `0x${string}`],
   );
 
   const p1_enc = encodeAbiParameters(
