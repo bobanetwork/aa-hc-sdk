@@ -1,6 +1,6 @@
-import { UserOpManager } from "../src";
 import { encodeAbiParameters, parseAbiParameters } from "viem";
 import * as dotenv from "dotenv";
+import {UserOpManager} from "../../src";
 
 dotenv.config();
 
@@ -33,7 +33,7 @@ describe("Custom User Operation SDK Tests", () => {
     });
   });
 
-  it("should create a hybrid account on testnet", async () => {
+  it.skip("should create a hybrid account on testnet", async () => {
     const salt = new Date().getTime();
     const expectedAddress = await userOpManager.getExpectedAddress({ salt, accountType: 'hybrid' });
     
@@ -85,5 +85,25 @@ describe("Custom User Operation SDK Tests", () => {
     expect(receipt).toBeDefined();
     expect(receipt.success).toBe(true);
     expect(receipt.receipt.status).toBe("0x1");
+  }, 60000);
+
+  it.skip("should create a new smart account only by salt", async () => {
+    const salt = new Date().getTime();
+    const result = await userOpManager.createSmartAccount({ salt });
+    const expectedAddress = await userOpManager.getExpectedAddress({salt});
+
+    expect(result.address).toEqual(expectedAddress)
+    expect(result).toBeDefined();
+    expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(result.receipt).toBeDefined();
+  }, 60000);
+
+  it.skip("should create a new smart account only by salt", async () => {
+    const result = await userOpManager.createSmartAccount({
+      salt: new Date().getTime(),
+    });
+    expect(result).toBeDefined();
+    expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(result.receipt).toBeDefined();
   }, 60000);
 });

@@ -78,26 +78,6 @@ describe("User Operation Manager Tests", () => {
     expect(result.length).toBe(10);
   });
 
-  it.skip("should create a new smart account only by salt", async () => {
-    const salt = new Date().getTime();
-    const result = await userOperationManager.createSmartAccount({ salt });
-    const expectedAddress = await userOperationManager.getExpectedAddress({salt});
-
-    expect(result.address).toEqual(expectedAddress)
-    expect(result).toBeDefined();
-    expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    expect(result.receipt).toBeDefined();
-  }, 60000);
-
-  it.skip("should create a new smart account only by salt", async () => {
-    const result = await userOperationManager.createSmartAccount({
-      salt: new Date().getTime(),
-    });
-    expect(result).toBeDefined();
-    expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    expect(result.receipt).toBeDefined();
-  }, 60000);
-
   describe("Bundler smoke test", () => {
     it.skip("should send a simple OP to the bundler to test it", async () => {
       const nodeUrl     = "https://mainnet.boba.network";

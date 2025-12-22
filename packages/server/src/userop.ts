@@ -98,7 +98,6 @@ export class UserOpManager {
     ): Promise<UserOperationV7> {
         const gasPrice = await this.publicClient.getGasPrice();
         const tip = Number(parseGwei("0.5"));
-        const baseFee = Number(gasPrice);
         const fee = Math.floor(Number(gasPrice) * 1.1);
 
         const encodedParams = encodeAbiParameters(

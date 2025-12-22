@@ -318,15 +318,15 @@ describe("Generate Response: V7", () => {
       expect(recoveredAddress.startsWith("0x")).toBe(true);
     });
 
-    it("should use raw hash for signing with Ethereum message prefix", async () => {
+    it("should reject invalid signatures", async () => {
       const mockHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
       
-      expect(() => {
-        recoverMessageAddress({
+      await expect(async () => {
+        await recoverMessageAddress({
           message: { raw: mockHash },
           signature: "0x" + "00".repeat(65) as `0x${string}`,
         });
-      }).not.toThrow();
+      }).rejects.toThrow();
     });
   });
 

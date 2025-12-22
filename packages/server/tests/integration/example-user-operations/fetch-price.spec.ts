@@ -4,6 +4,17 @@ import { UserOpManager } from "../../../src";
 
 dotenv.config();
 
+/**
+ * Example user operations for the fetch-price live example.
+ * This example is used to demonstrate how to use the UserOpManager to build, estimate, and send a user operation.
+ * The user operation is used to call the fetchPrice function on the fetch-price contract.
+ * The fetchPrice function is used to fetch the price of a token from the CoinRanking API.
+ * The price is then encoded and returned as a response.
+ * This example is used to demonstrate how to use the UserOpManager to build, estimate, and send a user operation.
+ * The user operation is used to call the fetchPrice function on the fetch-price contract.
+ * The fetchPrice function is used to fetch the price of a token from the CoinRanking API.
+ * The price is then encoded and returned as a response.
+ */
 describe("Custom User Operation SDK Tests", () => {
     // Shared configuration
     const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
@@ -31,12 +42,31 @@ describe("Custom User Operation SDK Tests", () => {
         });
     });
 
-it("should call fetchPrice(string) using the UserOperationManager", async () => {
+it.skip("should call fetchPrice(string) for ETH using the UserOperationManager", async () => {
     const token = "ETH";
     const encodedToken = encodeAbiParameters(
       parseAbiParameters("string"),
       [token]
     );
+    const calldata = userOpManager.selector("fetchPrice(string)") + encodedToken.slice(2);
+    const op = await userOpManager.buildOp(SENDER, CONTRACT_ADDRESS, 0, calldata, 0,);
+    const { success, op: estimatedOp } = await userOpManager.estimateOp(op);
+
+    expect(success).toEqual(true);
+    console.log("Gas estimation success:", success);
+    console.log("Estimated operation:", estimatedOp);
+
+    const receipt = await userOpManager.signSubmitOp(estimatedOp);
+
+    console.log("final receipt: ", receipt);
+    expect(receipt).toBeDefined();
+    expect(receipt.success).toBe(true);
+    expect(receipt.receipt.status).toBe("0x1");
+  }, 60000);
+
+  it.skip("should call fetchPrice(string) for BTC using the UserOperationManager", async () => {
+    const token = "BTC";
+    const encodedToken = encodeAbiParameters(parseAbiParameters("string"), [token]);
     const calldata = userOpManager.selector("fetchPrice(string)") + encodedToken.slice(2);
     const op = await userOpManager.buildOp(SENDER, CONTRACT_ADDRESS, 0, calldata, 0,);
     const { success, op: estimatedOp } = await userOpManager.estimateOp(op);

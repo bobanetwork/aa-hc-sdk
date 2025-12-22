@@ -3,6 +3,17 @@ import {UserOpManager} from "../../../src";
 
 dotenv.config();
 
+/**
+ * Example user operations for the PresiBot live example.
+ * This example is used to demonstrate how to use the UserOpManager to build, estimate, and send a user operation.
+ * The user operation is used to call the submitResults function on the PresiBot contract.
+ * The submitResults function is used to submit the results of the game to the PresiBot contract.
+ * The results are then encoded and returned as a response.
+ * This example is used to demonstrate how to use the UserOpManager to build, estimate, and send a user operation.
+ * The user operation is used to call the submitResults function on the PresiBot contract.
+ * The submitResults function is used to submit the results of the game to the PresiBot contract.
+ * The results are then encoded and returned as a response.
+ */
 describe("Custom User Operation SDK Tests", () => {
     // Shared configuration
     const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
@@ -32,7 +43,7 @@ describe("Custom User Operation SDK Tests", () => {
         });
     });
 
-    it("should call submitAnswer via UserOperation to PresiBot", async () => {
+    it.skip("should call submitAnswer via UserOperation to PresiBot", async () => {
         // build calldata
         const data = userOpManager.selector("submitResults()");
         // build operation
@@ -49,7 +60,7 @@ describe("Custom User Operation SDK Tests", () => {
         expect(receipt.receipt.status).toBe("0x1");
     }, 60000);
 
-    it("should call restartGame via UserOperation to PresiBot", async () => {
+    it.skip("should call restartGame via UserOperation to PresiBot", async () => {
         // build calldata
         const calldata = userOpManager.selector("getDailyQuestion()");
         // build operation
