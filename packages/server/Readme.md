@@ -86,13 +86,13 @@ export async function action(params: OffchainParameter) {
 ```typescript
 import { UserOpManager } from "@bobanetwork/aa-hc-sdk-server";
 
-const userOpManager = new UserOpManager(
-  "https://sepolia.boba.network",
-  "https://bundler-hc.sepolia.boba.network/rpc",
-  "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-  28882,
-  'your-private-key'
-);
+const userOpManager = new UserOpManager({
+  nodeUrl: "https://sepolia.boba.network",
+  bundlerUrl: "https://bundler-hc.sepolia.boba.network/rpc",
+  entryPoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  chainId: 28882,
+  privateKey: 'your-private-key'
+});
 
 // Create a new smart account
 const result = await userOpManager.createSmartAccount({

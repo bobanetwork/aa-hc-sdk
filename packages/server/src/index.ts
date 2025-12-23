@@ -6,4 +6,4 @@ export {
   getParsedRequest,
   ServerActionResponse,
 } from "./utils";
-export { UserOpManager } from "./userop";
+export { UserOpManager, type UserOpManagerConfig } from "./userop";
