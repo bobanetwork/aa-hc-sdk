@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Example script demonstrating the UserOpManager functionality.
-This mirrors the TypeScript UserOpManager usage patterns.
 """
 
 import asyncio

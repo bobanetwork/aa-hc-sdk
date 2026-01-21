@@ -470,7 +470,7 @@ class EthUtils:
             tx['gasPrice'] = self.w3.eth.gas_price
 
         signed_txn = self.w3.eth.account.sign_transaction(tx, key)
-        ret = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        ret = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         rcpt = self.w3.eth.wait_for_transaction_receipt(ret)
         if rcpt.status != 1:
             print("Transaction failed, txhash =", Web3.to_hex(ret))
