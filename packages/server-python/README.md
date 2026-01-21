@@ -5,11 +5,10 @@ This package provides Python server-side functionality for the Hybrid Compute SD
 ## Features
 
 - **HybridComputeSDK**: Core server functionality for hybrid compute operations
-- **UserOpManager**: Smart account creation and management (new!)
+- **UserOpManager**: Smart account creation and management
   - Create smart accounts with custom or default owners
   - Get expected addresses before creation
   - Retrieve account ownership information
-  - Full compatibility with TypeScript UserOpManager
 
 ## Installation
 
@@ -57,8 +56,6 @@ userop_manager = UserOpManager(
 ```
 
 ### Smart Account Management
-
-The `UserOpManager` provides the same functionality as the TypeScript version:
 
 #### Get Expected Address
 
@@ -131,32 +128,27 @@ UserOpManager(
 
 ## Testing
 
-Run the test suite to ensure functionality matches the TypeScript version:
-
 ```bash
-# Run all tests
-pytest
+make test              # All tests
+make test-unit         # Unit tests only
+make test-integration  # Integration tests only
+```
 
-# Run specific test files
-pytest tests/test_userop_manager.py
-pytest tests/test_integration.py
-
-# Run with coverage
-pytest --cov=hybrid_compute_sdk
+Test structure:
+```
+tests/
+├── unit/              # Unit tests (mocked, no blockchain)
+│   ├── test_config.py
+│   ├── test_user_operation_manager.py
+│   ├── test_utils.py
+│   └── test_server.py
+└── integration/       # Integration tests (real Boba Sepolia)
+    └── test_userop_manager.py
 ```
 
 ## Examples
 
 See `examples/userop_example.py` for a complete usage example.
-
-## Compatibility
-
-This Python implementation is designed to be fully compatible with the TypeScript `UserOpManager`:
-
-- Same method signatures and behavior
-- Identical constants and addresses
-- Matching error handling and retry logic
-- Same transaction flow and funding mechanism
 
 ## Environment Variables
 

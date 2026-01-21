@@ -4,3 +4,6 @@ flake8==6.0.0
 black==23.3.0
 web3==7.3.0
 jsonrpclib==0.2.1
+jsonrpcclient==4.0.3
+requests==2.31.0
+python-dotenv==1.0.0
