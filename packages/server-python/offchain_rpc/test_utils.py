@@ -203,6 +203,17 @@ class TestUtils:
            current examples but not intended as a general solution."""
         tx_rcpt = op_receipt['receipt']
         log_ret = None
+        print(tx_rcpt)
+        if 'l1GasPrice' not in tx_rcpt:
+            # supersim/anvil is not reporting this
+            print("Receipt is missing L1 gas info")
+            tx_rcpt['l1GasPrice'] = "0x1"
+            tx_rcpt['l1GasUsed'] = "0"
+            tx_rcpt['l1BaseFeeScalar'] = "0x1"
+            tx_rcpt['l1BlobBaseFee'] = "0"
+            tx_rcpt['l1BlobBaseFeeScalar'] = "0x1"
+            tx_rcpt['l1Fee'] = "0"
+
         print("GAS1", Web3.to_int(hexstr=op_receipt['actualGasCost']),
             Web3.to_int(hexstr=op_receipt['actualGasUsed']))
         print("GAS2", "used", Web3.to_int(hexstr= tx_rcpt['gasUsed']),

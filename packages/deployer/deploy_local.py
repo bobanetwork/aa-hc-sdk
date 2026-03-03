@@ -74,7 +74,6 @@ class LocalDeploy:
         self.d.env_vars['NODE_HTTP'] = self.d.eth_url
         self.d.env_vars['OC_NODE_HTTP'] = self.d.env_vars['NODE_HTTP']
         self.d.env_vars['CHAIN_ID'] = self.d.chain_id
-        self.d.env_vars['RUNDLER_PATH'] = self.d.cli_args.rundler_path
         self.d.env_vars['DEPLOYER_PATH'] = os.getcwd()
 
         print("Writing .env file")

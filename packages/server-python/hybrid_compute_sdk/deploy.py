@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import re
+import requests
 import subprocess
 import socket
 import time
@@ -47,13 +48,22 @@ class Deploy:
         self.contract_info = {}
         self.deployed = {}
 
+        # For supersim the L1 token is patched into the L1 genesis but the L2 is created through OptimismMintableERC20Factory
+        if len(self.w3.eth.get_code(self.boba_token)) == 0:
+            print("Deploying L2 Boba token")
+            calldata = selector("createOptimismMintableERC20(address,string,string)") + \
+                ethabi.encode(['address','string', 'string'],[self.boba_l1_addr, "Boba Token", "BOBA"])
+            tx = {
+                'to': self.token_factory_addr,
+                'data': calldata,
+                'from': self.deploy_addr,
+            }
+            self.l2_util.sign_and_submit(tx, self.deploy_key)
+            assert len(self.w3.eth.get_code(self.boba_token)) > 0
+
     def load_config(self):
         """Process the CLI args, env variables, and Devnet config"""
         parser = argparse.ArgumentParser()
-        parser.add_argument("--boba-path", required=True,
-            help="Path to your local Boba/Optimism repository")
-        parser.add_argument("--rundler-path", required=True,
-            help="Path to your local rundler-hc repository")
         parser.add_argument("--deploy-salt", required=False,
             help="Salt value for contract deployment", default="0")
         parser.add_argument("--kms-port", required=False,
@@ -85,37 +95,31 @@ class Deploy:
             self.env_vars['BUNDLER_ADDR_LIST'] = a1 + "," + a2
             self.env_vars['SIGNER_AWS_KMS_KEY_IDS'] = k1 + "," + k2
 
-        #For old devnet
-        #with open(cli_args.boba_path + "/.devnet/addresses.json", "r", encoding="ascii") as f:
-        #    jj = json.load(f)
-        #    boba_l1_addr = Web3.to_checksum_address(jj['BOBA'])
-        #    bridge_addr  = Web3.to_checksum_address(jj['L1StandardBridgeProxy'])
-        #    portal_addr  = Web3.to_checksum_address(jj['OptimismPortalProxy'])
-        with open(self.cli_args.boba_path + "/kurtosis-devnet/tests/boba-local-devnet.json",
-            "r", encoding="ascii") as f:
-            jj = json.load(f)
-            #l1 = jj['l1']['addresses']
-            l1a = jj['l2'][0]['l1_addresses']
+        sim_config = requests.post("http://127.0.0.1:8420", json={"id":0,"jsonrpc":"2.0","method":"admin_getConfig"}).json()['result'];
+        l1_config = sim_config['L1Config']
+        l2_config = sim_config['L2Configs'][0]['L2Config']
+        print(l2_config)
 
-            self.boba_l1_addr = self.env_vars['BOBA_L1']
-            self.bridge_addr  = Web3.to_checksum_address(l1a['L1StandardBridgeProxy'])
-            self.portal_addr  = Web3.to_checksum_address(l1a['OptimismPortalProxy'])
+        l1_rpc_port = l1_config['Port']
+        l2_rpc_port = sim_config['L2StartingPort']
 
-            l1_rpc_port = jj['l1']['nodes'][0]['services']['el']['endpoints']['rpc']['port']
-            l2_rpc_port = jj['l2'][0]['nodes'][0]['services']['el']['endpoints']['rpc']['port']
-            self.chain_id = jj['l2'][0]['id']
-            print("l1_rpc_port", l1_rpc_port)
-            print("l2_rpc_port", l2_rpc_port)
+        self.bridge_addr = Web3.to_checksum_address(l2_config['L1Addresses']['L1StandardBridgeProxy'])
+        self.portal_addr = l2_config['L1Addresses']['OptimismPortalProxy']
+        self.token_factory_addr = "0x4200000000000000000000000000000000000012" # supersim L2 predeploy
+        self.chain_id = sim_config['L2Configs'][0]['ChainID']
 
+        self.local_ip = "127.0.0.1"
         local_url_prefix = "http://" + str(self.local_ip) + ":"
         self.l1_url = local_url_prefix + str(l1_rpc_port)
         self.eth_url = local_url_prefix + str(l2_rpc_port)
 
-        with open(self.cli_args.boba_path + "/op-service/predeploys/addresses.go",
-            "r", encoding="ascii") as f:
-            for line in f.readlines():
-                if re.search("BobaL2 = ", line):
-                    self.boba_token = Web3.to_checksum_address(line.split('"')[1])
+        self.boba_l1_addr = "0xB0ba000000000000000000000000000000012345" # Added to the Supersim L1 genesis
+
+        # OptimismMintableERC20Factory.sol produces a deterministic address for a bridged token, based on:
+        #   bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
+        # So the address is known, even though the token may not exist yet on the supersim L2 chain
+        self.boba_token = "0x7ef298f35048Debc95D58fc7717848Ef2A69D670"
+
         print("Loaded devnet config:")
         print("  BOBA L1", self.boba_l1_addr)
         print("  Bridge", self.bridge_addr)
@@ -160,8 +164,8 @@ class Deploy:
         """Loads a contract's JSON ABI"""
         if not path:
             path = f"{self.contracts_path}/out/{name}.sol/{name}.json"
-
-        with open(path, "r", encoding="ascii") as f:
+        print("LOAD", path)
+        with open(path, "r", encoding="utf-8") as f:
             j = json.loads(f.read())
 
         self.contract_info[name] = {}
@@ -287,16 +291,17 @@ class Deploy:
         """
         cmd_env = {}
         print("Building contracts...")
-        args = ["forge", "build", "--root", self.contracts_path ]
+        args = ["forge", "build", "--via-ir", "--root", self.contracts_path ]
         args.append("--contracts")
         args.append(contract_dir)
-        args.append("--remappings")
-        args.append("@account-abstraction/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/account-abstraction/contracts")
-        args.append("--remappings")
-        args.append("@openzeppelin/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/openzeppelin-contracts")
-        args.append("--remappings")
-        args.append("@forge-std/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/common/lib/forge-std/")
+        #args.append("--remappings")
+        #args.append("@account-abstraction/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/account-abstraction/contracts")
+        #args.append("--remappings")
+        #args.append("@openzeppelin/lib/=" + "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/")
+        #args.append("--remappings")
+        #args.append("@forge-std/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/common/lib/forge-std/")
 
+        print (" ".join(args))
         sys_env = os.environ.copy()
 
         cmd_env['PATH'] = sys_env['PATH']
@@ -316,14 +321,15 @@ class Deploy:
         args.append("--contracts")
 
         args.append(contract_dir)
-        args.append("--remappings")
-        args.append("@account-abstraction/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/account-abstraction/contracts")
-        args.append("--remappings")
-        args.append("@openzeppelin/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/openzeppelin-contracts")
-        args.append("--remappings")
-        args.append("@forge-std/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/common/lib/forge-std/")
+        #args.append("--remappings")
+        #args.append("@account-abstraction/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/v0_7/lib/account-abstraction/contracts")
+        #args.append("--remappings")
+        #args.append("@openzeppelin/=" +  "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/")
+        #args.append("--remappings")
+        #args.append("@forge-std/=" + self.cli_args.rundler_path + "/crates/contracts/contracts/common/lib/forge-std/")
 
         args.append(script)
+        print (" ".join(args))
         sys_env = os.environ.copy()
 
         cmd_env['PATH'] = sys_env['PATH']
@@ -395,7 +401,6 @@ class Deploy:
                 time.sleep(2)
             print("Continuing")
 
-
         if self.boba_balance(self.deploy_addr) < Web3.to_wei(BOBA_MIN, 'ether'):
             self.l1_util.approve_token(self.boba_l1_addr, self.bridge_addr,
                 self.deploy_addr, self.deploy_key)
@@ -416,6 +421,7 @@ class Deploy:
                 'to': self.bridge_addr,
             }
             tx['gas'] = int(self.l1.eth.estimate_gas(tx) * 1.5)
+
             print("Funding L2 Deployer (BOBA)")
             self.l1_util.sign_and_submit(tx, self.deploy_key)
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to validate various aspects of a Hybrid Comptute deployment.
+# Script to validate various aspects of a Hybrid Compute deployment.
 set -e
 
 echo "Using environment variables:"
