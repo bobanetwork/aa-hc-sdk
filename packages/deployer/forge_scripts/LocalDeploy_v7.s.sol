@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.23;
 
-import "@forge-std/src/Script.sol";
+import "@forge-std/Script.sol";
 import "@account-abstraction/core/EntryPoint.sol";
 import "hc_src/HCHelper.sol";
 import "hc_src/HybridAccountFactory.sol";
@@ -41,9 +41,9 @@ contract LocalDeploy is Script {
             if (helperAddr != address(0) && helperAddr.code.length > 0) {
                 helper = HCHelper(helperAddr);
             } else {
-                HCHelper helperImpl = new HCHelper{salt: salt_val}(address(ept));
+                HCHelper helperImpl = new HCHelper{salt: salt_val}();
 
-                TransparentUpgradeableProxy hProxy = new TransparentUpgradeableProxy(
+                TransparentUpgradeableProxy hProxy = new TransparentUpgradeableProxy{salt: salt_val}(
                   address(helperImpl),
                   hcSysOwner,
                   abi.encodeCall(HCHelper.initialize, (deployAddr))
@@ -52,28 +52,9 @@ contract LocalDeploy is Script {
             }
         }
         {
-            address safAddr = vm.envOr("SA_FACTORY_ADDR", 0x0000000000000000000000000000000000000000);
-            if (safAddr != address(0) && safAddr.code.length > 0) {
-                saf = SimpleAccountFactory(safAddr);
-            } else {
-                saf = new SimpleAccountFactory(ept);
-            }
-        }
-        {
-            address hafAddr = vm.envOr("HA_FACTORY_ADDR", 0x0000000000000000000000000000000000000000);
-            if (hafAddr != address(0) && hafAddr.code.length > 0) {
-                haf = HybridAccountFactory(hafAddr);
-            } else {
-                haf = new HybridAccountFactory(ept, address(helper));
-            }
-        }
-        {
-            address ha0Addr = vm.envOr("HC_SYS_ACCOUNT", 0x0000000000000000000000000000000000000000);
-            if (ha0Addr != address(0) && ha0Addr.code.length > 0) {
-                ha0 = HybridAccount(payable(ha0Addr));
-            } else {
-                ha0 = haf.createAccount(hcSysOwner,0);
-            }
+            saf = new SimpleAccountFactory{salt: salt_val}(ept);
+            haf = new HybridAccountFactory{salt: salt_val}(ept, address(helper));
+            ha0 = haf.createAccount(hcSysOwner, uint256(salt_val));
         }
         if (helper.systemAccount() != address(ha0)) {
             helper.SetSystemAccount(address(ha0));

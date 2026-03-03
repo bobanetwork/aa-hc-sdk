@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.23;
 
-import "@forge-std/src/Script.sol";
+import "@forge-std/Script.sol";
 import "hc_src/HybridAccount.sol";
 import "hc_examples/TestAuctionSystem.sol";
 import "hc_examples/TestCaptcha.sol";
