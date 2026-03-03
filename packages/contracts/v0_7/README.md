@@ -1,6 +1,6 @@
 This directory contains contracts moved from the rundler-hc repo.
 The ones in "hc_src" can be deployed on a local devnet to provide
-the core functionality while the ones in "hc_example" correspond to
+the core functionality while the ones in "hc_examples" correspond to
 the set of standard examples and tests from rundler-hc.
 
 The lib/chainlink/VRF.sol contract is provided to support the VRF

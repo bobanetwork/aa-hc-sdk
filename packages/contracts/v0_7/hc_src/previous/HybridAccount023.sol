@@ -9,13 +9,12 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "@account-abstraction/core/BaseAccount.sol";
-import "@account-abstraction/core/Helpers.sol";
-import "@account-abstraction/samples/callback/TokenCallbackHandler.sol";
+import "account-abstraction/v0_7/core/BaseAccount.sol";
+import "account-abstraction/v0_7/core/Helpers.sol";
+import "account-abstraction/v0_7/samples/callback/TokenCallbackHandler.sol";
 
 interface IHCHelper {
   function TryCallOffchain(bytes32, bytes memory) external returns (uint32, bytes memory);
-  function SelfRegister(string calldata url) external returns (bool);
 }
 
 /**
@@ -24,21 +23,15 @@ interface IHCHelper {
   *  has execute, eth handling methods
   *  has a single signer that can send requests through the entryPoint.
   */
-/// @custom:oz-upgrades-from HybridAccount023
-contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, Initializable {
+contract HybridAccount023 is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, Initializable {
     mapping(address=>bool) public PermittedCallers;
 
     address public owner;
 
-    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     IEntryPoint private immutable _entryPoint;
-    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     address public immutable _helperAddr;
 
     event HybridAccountInitialized(IEntryPoint indexed entryPoint, address indexed owner);
-
-    // Vesion identifier
-    string public constant version = "0.5.0";
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -53,7 +46,6 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(IEntryPoint anEntryPoint, address helperAddr) {
         _entryPoint = anEntryPoint;
          _helperAddr = helperAddr;
@@ -163,11 +155,6 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
         _onlyOwner();
     }
 
-    /** Control which contracts may use this HybridAccount. Restrictions ensure that only authorized
-      * contracts may consume prepaid credits in HCHelper by making requests through this account. It
-      * is the developer's responsibility to add any addtional billing schemes between the HybridAccount
-      * and the PermittedCallers.
-      */
     function PermitCaller(address caller, bool allowed) public {
       _requireFromEntryPointOrOwner();
       PermittedCallers[caller] = allowed;
@@ -176,21 +163,11 @@ contract HybridAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     function CallOffchain(bytes32 userKey, bytes memory req) public returns (uint32, bytes memory) {
        /* By default a simple whitelist is used. Endpoint implementations may choose to allow
           unrestricted access, to use a custom permission model, to charge fees, etc. */
-       require(PermittedCallers[msg.sender], "Permission denied");
        require(_helperAddr != address(0), "Helper address not set");
+       require(PermittedCallers[msg.sender], "Permission denied");
        IHCHelper HC = IHCHelper(_helperAddr);
 
        userKey = keccak256(abi.encodePacked(userKey, msg.sender));
        return HC.TryCallOffchain(userKey, req);
-    }
-
-    /**
-     * Register an offchain URL with HCHelper. This triggers an offchain request in which the
-     * server must accept a request for this account's address.
-     */
-    function RegisterUrl(string calldata url) public onlyOwner {
-        IHCHelper HC = IHCHelper(_helperAddr);
-        bool success = HC.SelfRegister(url);
-        require(success, "URL registration was not successful");
     }
 }

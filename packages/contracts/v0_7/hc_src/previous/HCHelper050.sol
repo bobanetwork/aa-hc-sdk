@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /// @custom:oz-upgrades-from HCHelper023
-contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
+contract HCHelper050 is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
     using SafeERC20 for IERC20;
 
     event SystemAccountSet(address oldAccount, address newAccount);
@@ -54,7 +54,7 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
     mapping(address=>callerInfo) public RegisteredCallers;
 
     // Vesion identifier
-    string public constant version = "0.5.1-dev";
+    string public constant version = "0.5.0";
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -235,10 +235,7 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
 	} else if (entry.length != 0) {
 	    found = true;
 	    (srcAddr, srcNonce, errCode, response) = abi.decode(entry,(address, uint256, uint32, bytes));
-
-            // intended to truncate the low-order bits
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint192 nonceKey = uint192(srcNonce >> 64);
+	    uint192 nonceKey = uint192(srcNonce >> 64);
 
             INonceManager NM = INonceManager(entryPoint);
 	    uint256 actualNonce = NM.getNonce(srcAddr, nonceKey);

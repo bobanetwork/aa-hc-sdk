@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.12;
 
-import "@account-abstraction/interfaces/INonceManager.sol";
+import "account-abstraction/v0_7/interfaces/INonceManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-/// @custom:oz-upgrades-from HCHelper023
-contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
+contract HCHelper023 is ReentrancyGuard, UUPSUpgradeable, Initializable {
     using SafeERC20 for IERC20;
 
     event SystemAccountSet(address oldAccount, address newAccount);
     event RegisteredUrl(address contract_addr, string url);
     event TokenWithdrawal(address withdrawTo, uint256 amount);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    // This slot was previously used by ReentrancyGuard.
+    // This slot is used by ReentrancyGuard but the OZ upgrade scripts aren't
+    // detecting it. This variable is placed here to support upgrades. Do not
+    // deploy this version of the contract.
     bytes32 internal _pad0;
 
     // Response data is stored here by PutResponse() and then consumed by TryCallOffchain().
     mapping(bytes32=>bytes)  ResponseCache;
 
     // AA EntryPoint
-    address public constant entryPoint = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+    address public immutable entryPoint;
 
     // Owner
     address public owner;
@@ -53,8 +53,6 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
     // Contracts which are allowed to use Hybrid Compute.
     mapping(address=>callerInfo) public RegisteredCallers;
 
-    // Vesion identifier
-    string public constant version = "0.5.1-dev";
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -62,6 +60,11 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
     }
     function _onlyOwner() internal view {
         require(msg.sender == owner || msg.sender == address(this), "only owner");
+    }
+
+    // Constructor
+    constructor(address _entryPoint) {
+	entryPoint = _entryPoint;
     }
 
     // Set the initial owner
@@ -89,71 +92,6 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
         emit RegisteredUrl(contract_addr, url);
     }
 
-    // This method allows a HybridAccount to register its offchain URL, creating an entry
-    // in RegisteredCallers. The bundler will call a special method on the offchain url, passing
-    // the address of the contract which is attempting to register it. The registration will
-    // only succeed if the server sends a response accepting it.
-    function SelfRegister(string calldata url) public returns (bool success) {
-        address contract_addr = msg.sender;
-        success = false;
-
-        require(contract_addr.codehash != keccak256(""), "SelfRegister must be called by a contract");
-        if(bytes(url).length == 0) {
-            RegisteredCallers[contract_addr].url = "";
-            emit RegisteredUrl(contract_addr, "");
-        } else {
-            // This is a modified subset of TryCallOffchain()
-            bytes32 userKey = keccak256(abi.encodePacked("_register_", msg.sender));
-            bytes memory req = abi.encodeWithSignature("_register(address,string)", contract_addr, url);
-
-            bytes32 subKey = keccak256(abi.encodePacked(userKey, req));
-            bytes32 mapKey = keccak256(abi.encodePacked(msg.sender, subKey));
-
-            bool found;
-	    uint32 errCode;
-            bytes memory ret;
-
-            (found, errCode, ret) = getEntry(mapKey);
-
-	    if (found) {
-                if (errCode == 0) {
-	            bool reg_success = abi.decode(ret, (bool));
-                    if (reg_success) {
-                        RegisteredCallers[contract_addr].owner = contract_addr;
-                        RegisteredCallers[contract_addr].url = url;
-                        emit RegisteredUrl(contract_addr, url);
-                    }
-                    return reg_success;
-                }
-                return false;
-	    } else {
-	        // If no off-chain response, check for a system error response.
-                bytes32 errKey = keccak256(abi.encodePacked(address(this), subKey));
-
-	        (found, errCode, ret) = getEntry(errKey);
-	        if (found) {
-	            return false;
-	        } else {
-	            // Nothing found, so trigger a new request.
-                    bytes memory prefix = "_HC_TRIG";
-                    bytes memory r2 = bytes.concat(prefix, abi.encodePacked(msg.sender, userKey, req));
-                    assembly {
-                        revert(add(r2, 32), mload(r2))
-	            }
-	        }
-	    }
-        }
-    }
-
-    // Reassign ownership of a registered caller. Not needed under normal circumstances.
-    // Note that this refers to owners of registered contracts, not ownership of HCHelper itself.
-    function ReassignOwner(address contract_addr, address new_owner) public {
-        require(new_owner != address(0), "Must supply a new_owner");
-        require(RegisteredCallers[contract_addr].owner != address(0), "Caller is not registered");
-        require(msg.sender == RegisteredCallers[contract_addr].owner, "Only existing owner may reassign");
-        RegisteredCallers[contract_addr].owner = new_owner;
-    }
-
     // Set or change the per-call token price (0 is allowed), token,
     // and maximum credit balance. Does not affect existing balances,
     // only new AddCredit() purchases.
@@ -165,7 +103,7 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
 
     // Purchase credits allowing the specified contract to perform HC calls.
     // The token cost is (pricePerCall() * numCredits) and is non-refundable
-    function AddCredit(address contract_addr, uint256 numCredits) public /*nonReentrant*/ {
+    function AddCredit(address contract_addr, uint256 numCredits) public nonReentrant {
         require(tokenAddr != address(0), "Payment info not initialized");
         uint256 tokenPrice = numCredits * pricePerCall;
         RegisteredCallers[contract_addr].credits += numCredits;
@@ -174,7 +112,7 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
     }
 
     // Allow the owner to withdraw tokens
-    function WithdrawTokens(uint256 amount, address withdrawTo) public onlyOwner /*nonReentrant*/ {
+    function WithdrawTokens(uint256 amount, address withdrawTo) public onlyOwner nonReentrant {
         emit TokenWithdrawal(withdrawTo, amount);
         IERC20(tokenAddr).safeTransfer(withdrawTo, amount);
     }
@@ -235,10 +173,7 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
 	} else if (entry.length != 0) {
 	    found = true;
 	    (srcAddr, srcNonce, errCode, response) = abi.decode(entry,(address, uint256, uint32, bytes));
-
-            // intended to truncate the low-order bits
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint192 nonceKey = uint192(srcNonce >> 64);
+	    uint192 nonceKey = uint192(srcNonce >> 64);
 
             INonceManager NM = INonceManager(entryPoint);
 	    uint256 actualNonce = NM.getNonce(srcAddr, nonceKey);
@@ -299,14 +234,5 @@ contract HCHelper is ReentrancyGuardTransient, UUPSUpgradeable, Initializable {
         assembly {
             ret := ResponseCache.slot
         }
-    }
-
-    // Support ownership transfer. A future version could move to using OZ OwnableUpgradeable
-    // but the currently deployed contract has its own 'owner' variable.
-    function transferOwnership(address newOwner) public onlyOwner {
-        require(newOwner != address(0), "New owner is the zero address");
-        address oldOwner = owner;
-        owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
